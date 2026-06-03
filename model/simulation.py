@@ -33,6 +33,11 @@ class Simulation:
         self.verify_cache = verify_cache
         self.t = 0
         self.contracts = []
+        # Structured event log for the current tick, consumed by the GUI to drive
+        # edge animations and the deliveries-vs-failures graph. Cleared at the top
+        # of each tick(); appended to alongside the existing prints. Purely
+        # additive -- nothing in the model reads it.
+        self.events = []
         self.lead_times = list(range(forecast_window + 1))
         self._wire_upstream()
 
@@ -90,6 +95,7 @@ class Simulation:
         t = self.t
         contracts = self.contracts
         forecast_window = self.forecast_window
+        self.events = []
 
         print(f"Month {t}")
         self._print_status()
@@ -425,9 +431,14 @@ class Simulation:
             avg_price = sum(c.price for c in cs) / len(cs)
             avg_penalty = sum(c.supplier_penalty for c in cs) / len(cs)
             bumped = bumped_from.get((seller, buyer))
+            self.events.append({"type": "contract", "seller": seller.name,
+                                "buyer": buyer.name, "qty": total_qty,
+                                "delivery_time": delivery_time})
             if bumped:
                 print(f"  [t={t} lead={lead_time}] {seller.name} will bump {bumped} to supply {buyer.name} {total_qty} units "
                       f"@ avg price {avg_price:.2f}, avg penalty {avg_penalty:.2f} (delivery t={delivery_time})")
+                self.events.append({"type": "bumped", "seller": seller.name,
+                                    "buyer": buyer.name, "dropped": bumped, "qty": total_qty})
             elif (seller, buyer) in repurchased:
                 print(f"  [t={t} lead={lead_time}] {buyer.name} repurchases {total_qty} units from {seller.name} "
                       f"@ avg price {avg_price:.2f}, avg penalty {avg_penalty:.2f} (delivery t={delivery_time})")
@@ -483,9 +494,15 @@ class Simulation:
             for c in reneged:
                 reneged_by_customer.setdefault(c.customer, []).append(c)
             for cust, cs in delivered_by_customer.items():
-                print(f"  [t={t}] {supplier.name} delivers {sum(c.quantity for c in cs)} units to {cust.name}")
+                qty = sum(c.quantity for c in cs)
+                print(f"  [t={t}] {supplier.name} delivers {qty} units to {cust.name}")
+                self.events.append({"type": "delivered", "supplier": supplier.name,
+                                    "customer": cust.name, "qty": qty})
             for cust, cs in reneged_by_customer.items():
-                print(f"  [t={t}] {supplier.name} FAILS to deliver {sum(c.quantity for c in cs)} units to {cust.name}")
+                qty = sum(c.quantity for c in cs)
+                print(f"  [t={t}] {supplier.name} FAILS to deliver {qty} units to {cust.name}")
+                self.events.append({"type": "failed", "supplier": supplier.name,
+                                    "customer": cust.name, "qty": qty})
 
             for c in delivered:
                 delivered_qty_by_customer[c.customer] = delivered_qty_by_customer.get(c.customer, 0) + c.quantity
@@ -537,5 +554,9 @@ class Simulation:
         retailer.balance += retailer.revenue_fn(t) * delivered_to_customer
         if delivered_to_customer > 0:
             print(f"  [t={t}] {retailer.name} delivers {delivered_to_customer:.0f} units to customers")
+            self.events.append({"type": "delivered", "supplier": retailer.name,
+                                "customer": "end", "qty": delivered_to_customer})
         if shortfall > 0:
             print(f"  [t={t}] {retailer.name} FAILS to deliver {shortfall:.0f} units to customers")
+            self.events.append({"type": "failed", "supplier": retailer.name,
+                                "customer": "end", "qty": shortfall})

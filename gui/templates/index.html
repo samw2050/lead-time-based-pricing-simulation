@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Supply-Chain Simulation</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Supply-Chain Simulation</h1>
+    <span id="tick-label" class="tick-label">t = &ndash;</span>
+  </header>
+
+  <!-- 1 + 2: map and readout -->
+  <section class="top">
+    <div class="map-panel">
+      <div class="map-toolbar">
+        <label>Dot size:
+          <select id="metric-select">
+            <option value="inventory">inventory</option>
+            <option value="contracts">contracts</option>
+            <option value="balance">balance</option>
+            <option value="wip">work in progress</option>
+          </select>
+        </label>
+        <span class="legend">
+          <span class="legend-dot flow"></span> delivery
+          <span class="legend-dot fail"></span> failed delivery
+          <span class="legend-dot bump"></span> bumped (planned re-route)
+        </span>
+      </div>
+      <svg id="map" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <div class="readout-panel" id="readout-panel">
+      <div class="readout-head">
+        <span>Simulation output</span>
+        <button id="toggle-readout" class="small">Hide</button>
+      </div>
+      <pre id="readout"></pre>
+    </div>
+  </section>
+
+  <!-- 3: controls -->
+  <section class="controls">
+    <button id="btn-play" disabled>&#9654; Play</button>
+    <button id="btn-stop" disabled>&#9632; Stop</button>
+    <button id="btn-step" disabled>&#9197; Step</button>
+    <label>Load:
+      <select id="scenario-select"></select>
+    </label>
+    <button id="btn-load">Load</button>
+    <label class="speed">Speed:
+      <input type="range" id="speed" min="0.5" max="20" step="0.5" value="2">
+      <span id="speed-val">2</span>/s
+    </label>
+    <span id="status-msg" class="status-msg"></span>
+  </section>
+
+  <!-- 4: scenario builder -->
+  <section class="builder">
+    <h2>Scenario builder</h2>
+    <div class="builder-meta">
+      <label>Name <input type="text" id="sb-name" value="my_scenario"></label>
+      <label>Forecast window <input type="number" id="sb-fw" value="12" min="1"></label>
+      <label>Length (ticks) <input type="number" id="sb-len" value="120" min="1"></label>
+    </div>
+    <div id="sb-tiers"></div>
+    <div class="builder-actions">
+      <button id="sb-add-tier">+ Add tier</button>
+      <button id="sb-save">Save scenario</button>
+      <span id="sb-msg" class="status-msg"></span>
+    </div>
+  </section>
+
+  <!-- 5: graphs -->
+  <section class="graphs">
+    <h2>Deliveries vs. failures</h2>
+    <canvas id="chart"></canvas>
+  </section>
+
+  <script src="{{ url_for('static', filename='map.js') }}"></script>
+  <script src="{{ url_for('static', filename='graphs.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

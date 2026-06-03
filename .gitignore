@@ -40,3 +40,7 @@ Thumbs.db
 
 # Manual backup copies (replaced by git history)
 old/
+
+# User-created scenarios (keep only the default)
+gui/scenarios/*.json
+!gui/scenarios/default.json
