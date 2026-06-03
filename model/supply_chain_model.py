@@ -7,7 +7,7 @@ Simulation -- the building blocks live in the sibling modules:
     schedules.py   supply / demand / revenue function factories
     bump_model.py  logistic bump-probability model
     solver.py      two-stage contract solver
-    contract.py    the contract record
+    contracts.py   the contract record and the ContractBook
     tier.py        Tier: a horizontal layer of agents
     agent.py       agent: a single firm in the chain
     simulation.py  Simulation: the tick loop and auction

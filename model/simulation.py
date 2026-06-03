@@ -1,7 +1,7 @@
 """The Simulation: runs an N-tier supply-chain auction over discrete ticks."""
 
 from bump_model import bumped_prob
-from contract import contract, ContractBook
+from contracts import contract, ContractBook
 from solver import solve, solve_checked
 
 
