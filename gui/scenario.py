@@ -67,7 +67,7 @@ def build_schedule(spec):
 
 # Scalar params copied straight through to agent(...) when present.
 _SCALAR_FIELDS = (
-    "cost", "conversion_cost", "production_time", "inventory",
+    "cost", "production_cost", "production_time", "inventory",
     "input_inventory", "safety_stock", "penalty_scale", "risk_aversion",
 )
 # Fields whose value is a schedule spec, mapped name -> agent kwarg.

@@ -506,9 +506,9 @@ class Simulation:
 
             for c in delivered:
                 delivered_qty_by_customer[c.customer] = delivered_qty_by_customer.get(c.customer, 0) + c.quantity
-                # Revenue only -- the value-add (conversion_cost) was already deducted
+                # Revenue only -- the value-add (production_cost) was already deducted
                 # in start_production when this unit was produced. Net per unit is
-                # still (sale_price - conversion_cost - any input cost), just split
+                # still (sale_price - production_cost - any input cost), just split
                 # across the production-start and delivery events.
                 supplier.balance += c.price * c.quantity
                 c.customer.balance -= c.price * c.quantity

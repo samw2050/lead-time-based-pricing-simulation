@@ -37,18 +37,18 @@ if __name__ == "__main__":
 
     # tier1: middle intermediaries. Their own assembly capacity (supply_fn) plus
     # required inputs from tier2 (input_inventory enables the second pool). cost /
-    # conversion_cost split: `cost` is the all-in optimizer basis (Phase-1
-    # placeholder), `conversion_cost` is the value-add used in balance accounting.
+    # production_cost split: `cost` is the all-in optimizer basis (Phase-1
+    # placeholder), `production_cost` is the value-add used in balance accounting.
     # revenue_forecast_fn is the resale price tier1 expects (Phase-1 placeholder;
     # Phase 3 will derive it). Seeded with both finished inventory (so it can sell
     # at lead 0 on tick 0) and input_inventory (so it can start assembly on tick 0
     # without waiting for tier2).
     tier1 = Tier("tier1", role="intermediary", agents=[
-        agent(name="tier1_1", cost=60, conversion_cost=12,
+        agent(name="tier1_1", cost=60, production_cost=12,
               supply_fn=linear(start=50, slope=0, floor=0),
               production_time=2, inventory=50, input_inventory=50,
               safety_stock=50, revenue_forecast_fn=fixed(100), penalty_scale=1.1),
-        agent(name="tier1_2", cost=60, conversion_cost=12,
+        agent(name="tier1_2", cost=60, production_cost=12,
               supply_fn=linear(start=50, slope=0, floor=0),
               production_time=2, inventory=50, input_inventory=50,
               safety_stock=50, revenue_forecast_fn=fixed(100), penalty_scale=1.1),

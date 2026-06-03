@@ -15,7 +15,7 @@ from bump_model import DEFAULT_MODEL_SELF, DEFAULT_MODEL_OTHER
 
 class agent:
     def __init__(self, name=None, risk_aversion=0.001, demand_fn=None, supply_fn=None,
-                 cost=0, conversion_cost=None,
+                 cost=0, production_cost=None,
                  revenue_fn=None, revenue_forecast_fn=None,
                  safety_stock=0, inventory=0,
                  production_time=0, input_inventory=None,
@@ -53,14 +53,14 @@ class agent:
         self.bump_models = {}
         self.min_obs_for_fit = min_obs_for_fit
         self.l2_reg = l2_reg
-        # `cost` is the all-in cost basis used by the bid optimizer (input + conversion
-        # for intermediaries; production cost for producers). `conversion_cost` is the
+        # `cost` is the all-in cost basis used by the bid optimizer (input + production
+        # for intermediaries; production cost for producers). `production_cost` is the
         # value-add component used in the balance formula -- for intermediaries the
         # input cost is already deducted separately via the buyer-side payment, so the
         # balance update must only subtract the value-add (otherwise the input is
         # double-counted). Default: same as `cost`, which is correct for producers.
         self.cost = cost
-        self.conversion_cost = conversion_cost if conversion_cost is not None else cost
+        self.production_cost = production_cost if production_cost is not None else cost
         self.revenue_fn = revenue_fn if revenue_fn is not None else fixed(0)
         self.revenue_forecast_fn = revenue_forecast_fn if revenue_forecast_fn is not None else fixed(0)
         self.revenue_forecast = {}
@@ -329,12 +329,12 @@ class agent:
         # tau == 0 is treated as an instantaneous transformation: units go straight
         # into finished inventory rather than being scheduled for completion.
         #
-        # Accounting: the value-add (conversion_cost) is deducted from balance HERE,
+        # Accounting: the value-add (production_cost) is deducted from balance HERE,
         # at production start, not at sale. This matches the auction's "excess stock =
         # cost 0" semantics: once a unit has been produced the cost is sunk, so the
         # optimizer correctly treats subsequent sales as having zero cost basis. The
         # delivery balance update therefore records only the sale price, not
-        # (price - conversion_cost). Input cost for intermediaries is unaffected --
+        # (price - production_cost). Input cost for intermediaries is unaffected --
         # it's still charged when inputs are purchased on the buyer side.
         if qty <= 0:
             return 0
@@ -347,7 +347,7 @@ class agent:
         if qty <= 0:
             return 0
         self.starts_today += qty
-        self.balance -= qty * self.conversion_cost
+        self.balance -= qty * self.production_cost
         if self.production_time == 0:
             self.inventory += qty
         else:
@@ -474,25 +474,25 @@ class agent:
 
     def replacement_cost(self, t, delivery_time):
         # Marginal cost of producing one new unit for delivery at delivery_time.
-        # For top-tier producers (no upstream / no input pool): conversion only,
+        # For top-tier producers (no upstream / no input pool): production only,
         # which equals their production cost.
-        # For intermediaries: conversion_cost + cheapest learned upstream input price
+        # For intermediaries: production_cost + cheapest learned upstream input price
         # at the relevant lead (the lead at which the input must arrive to start
         # assembly in time). Cold-start fallback: the static estimate already baked
-        # into self.cost (cost - conversion_cost = expected input cost).
+        # into self.cost (cost - production_cost = expected input cost).
         if self.input_inventory is None or not self.upstream_suppliers:
-            return self.conversion_cost
+            return self.production_cost
         input_arrival = delivery_time - self.production_time
         upstream_lead = max(0, input_arrival - t)
-        fallback_input = max(0, self.cost - self.conversion_cost)
+        fallback_input = max(0, self.cost - self.production_cost)
         costs = []
         for upstream in self.upstream_suppliers:
             est = self.lookup_ewma(upstream, upstream_lead, fallback=fallback_input)
             if est is not None:
                 costs.append(est)
         if not costs:
-            return self.conversion_cost + fallback_input
-        return self.conversion_cost + min(costs)
+            return self.production_cost + fallback_input
+        return self.production_cost + min(costs)
 
     # ----- offer-stage split (excess vs new production) -----
 

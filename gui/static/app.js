@@ -116,7 +116,7 @@
   // Core agent fields exposed in the builder. type: number | schedule.
   const AGENT_FIELDS = [
     { key: "cost", type: "number" },
-    { key: "conversion_cost", type: "number" },
+    { key: "production_cost", type: "number" },
     { key: "production_time", type: "number" },
     { key: "inventory", type: "number" },
     { key: "input_inventory", type: "number" },
