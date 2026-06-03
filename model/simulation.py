@@ -1,7 +1,7 @@
 """The Simulation: runs an N-tier supply-chain auction over discrete ticks."""
 
 from bump_model import bumped_prob
-from contract import contract
+from contract import contract, ContractBook
 from solver import solve, solve_checked
 
 
@@ -32,7 +32,7 @@ class Simulation:
         self.minimisation_tolerance = minimisation_tolerance
         self.verify_cache = verify_cache
         self.t = 0
-        self.contracts = []
+        self.contracts = ContractBook()
         # Structured event log for the current tick, consumed by the GUI to drive
         # edge animations and the deliveries-vs-failures graph. Cleared at the top
         # of each tick(); appended to alongside the existing prints. Purely
@@ -126,7 +126,7 @@ class Simulation:
         # Each producer/intermediary decides today's starts using its build-to-stock
         # policy. Today's starts immediately enter production_schedule (or, if
         # tau==0, directly inventory), so the trading auction below sees them via
-        # units_available.
+        # offerable_units.
         for a in self.all_agents:
             starts = a.decide_production_starts(t, contracts)
             a.start_production(starts, t)
@@ -154,6 +154,14 @@ class Simulation:
 
         print(f"  [t={t}] balances: " + ", ".join(
             f"{a.name}: {a.balance:+.2f}" for a in self.all_agents))
+
+        # --- prune settled contracts ---
+        # Everything due on or before t has now been delivered or reneged, so it no
+        # longer represents an outstanding commitment. Dropping it keeps the contract
+        # indexes bounded to live contracts and makes supplier_load reflect only
+        # outstanding obligations. (The GUI snapshot runs after t increments and
+        # already filters to delivery_time >= t, so its view is unaffected.)
+        self.contracts.prune(t)
 
     # ----- printing helpers -----
 
@@ -191,7 +199,7 @@ class Simulation:
         the tie. This is recomputed each auction round, so a seller that wins a unit
         becomes 'heavier' and the next tied award goes to its lighter rival, producing
         natural alternation instead of a permanent list-order bias."""
-        return sum(c.quantity for c in contracts if c.supplier is seller)
+        return contracts.supplier_load(seller)
 
     # ----- auction: one adjacent-layer round at one delivery_time -----
 
@@ -240,9 +248,8 @@ class Simulation:
                                  'cost': s.replacement_cost(t, delivery_time),
                                  'source': 'new_prod'}
             if not offers:
-                for c in contracts:
-                    if (c.delivery_time == delivery_time
-                            and c.supplier in sellers
+                for c in contracts.by_delivery_time(delivery_time):
+                    if (c.supplier in sellers
                             and c.supplier not in exhausted_sellers
                             and c.supplier not in offers):
                         offers[c.supplier] = {'incumbent': c, 'cost': 0.0, 'source': 'resale'}
@@ -406,7 +413,7 @@ class Simulation:
                 c.supplier_penalty = outcome['supplier_penalty']
                 c.quantity = unit_size
                 c.agreed_lead_time = lead_time
-                contracts.append(c)
+                contracts.add(c)
                 new_contracts_total.append(c)
                 outcome['buyer'].update_supply_forecast(delivery_time, unit_size)
                 seller.update_demand_forecast(delivery_time, unit_size)
@@ -459,8 +466,8 @@ class Simulation:
 
         delivered_qty_by_customer = {}
         due_by_supplier = {}
-        for c in contracts:
-            if c.delivery_time == t and c.supplier in supplier_layer:
+        for c in contracts.by_delivery_time(t):
+            if c.supplier in supplier_layer:
                 due_by_supplier.setdefault(c.supplier, []).append(c)
 
         for supplier, due_contracts in due_by_supplier.items():

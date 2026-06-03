@@ -68,4 +68,4 @@ if __name__ == "__main__":
               safety_stock=2, inventory=2),
     ])
 
-    Simulation(tiers=[tier2, tier1, oem], forecast_window=12, simulation_length=2400).run()
+    Simulation(tiers=[tier2, tier1, oem], forecast_window=12, simulation_length=13).run()

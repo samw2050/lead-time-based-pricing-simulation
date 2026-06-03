@@ -22,8 +22,9 @@ def _agent_state(a):
 
 
 def snapshot(sim, log_text=""):
-    # The model never prunes delivered contracts from sim.contracts, so only the
-    # still-open ones (delivery due now or later) represent live relationships.
+    # The model prunes settled contracts at the end of each tick, so the book holds
+    # only live (delivery due now or later) contracts by the time we snapshot. The
+    # delivery_time >= sim.t filter is kept as a defensive belt-and-braces guard.
     active = [c for c in sim.contracts if c.delivery_time >= sim.t]
 
     # Count active contracts per agent (as supplier or customer) for the

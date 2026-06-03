@@ -135,8 +135,7 @@ class agent:
             assert contracts is not None, "Intermediary needs contracts to derive demand"
             def obligation(future_t):
                 ot = future_t + self.production_time
-                return sum(c.quantity for c in contracts
-                           if c.supplier is self and c.delivery_time == ot)
+                return contracts.outbound_qty(self, ot, ot)
             self._fill_window(self.demand_forecast, t, forecast_window, obligation)
 
     def predict_revenue(self, t, forecast_window):
@@ -152,8 +151,7 @@ class agent:
 
     def update_cumulative_supply(self, t, forecast_window, contracts):
         def inbound(ft):
-            return sum(c.quantity for c in contracts
-                       if c.customer is self and c.delivery_time == ft)
+            return contracts.inbound_qty(self, ft, ft)
         self._fill_window(
             self.cumulative_supply_forecast, t, forecast_window,
             inbound, cumulative=True,
@@ -196,22 +194,24 @@ class agent:
                 self.cumulative_demand_forecast[dt] += delta
                 self.cumulative_surplus_forecast[dt] -= delta
 
-    def units_available(self, delivery_time, t, contracts):
-        # Available-to-promise: free FINISHED units this agent can offer for delivery at T.
-        # Unified across all agent types:
-        #   inventory (finished, on hand)
-        # + production completing by T (already scheduled in production_schedule)
-        # - committed outbound by T (already-promised deliveries between now and T)
-        # By the time units_available is called inside trading, today's production
-        # decisions are already in production_schedule, so today's new starts (which
-        # complete at t + tau) are counted automatically for any delivery_time >= t + tau.
-        # Phase 3 will split this into "excess stock" (cost 0) vs "new production"
-        # (cost = EWMA replacement); for Phase 2 every available unit is priced the same.
-        completions_by_T = sum(qty for ct, qty in self.production_schedule.items()
-                               if ct <= delivery_time)
-        outbound_by_T = sum(c.quantity for c in contracts
-                            if c.supplier == self and t <= c.delivery_time <= delivery_time)
-        return max(0, self.inventory + completions_by_T - outbound_by_T)
+    # ----- shared production / offer aggregates -----
+
+    def _completions_through(self, T):
+        # Total scheduled production completing on or before T.
+        return sum(qty for ct, qty in self.production_schedule.items() if ct <= T)
+
+    def _committed_outbound(self, lo, hi, contracts):
+        # Units already promised for delivery in [lo, hi] with this agent as supplier.
+        return contracts.outbound_qty(self, lo, hi)
+
+    def _future_start_capacity(self, t, latest_start):
+        # Units this agent could still START in [t, latest_start]: today's remaining
+        # capacity (supply_fn(t) - starts_today, floored at 0) plus full capacity each
+        # subsequent tick through latest_start. Caller must ensure supply_fn is set.
+        cap = max(0, self.supply_fn(t) - self.starts_today)
+        for s in range(t + 1, latest_start + 1):
+            cap += self.supply_fn(s)
+        return cap
 
     def current_input_stock(self):
         # The pool the agent draws from for its OWN consumption / production starts.
@@ -372,10 +372,8 @@ class agent:
         max_needed = 0
         for lead in range(self.production_time, self.production_time + self.build_to_stock_horizon + 1):
             future_t = t + lead
-            outbound = sum(c.quantity for c in contracts
-                           if c.supplier == self and t <= c.delivery_time <= future_t)
-            completions = sum(qty for ct, qty in self.production_schedule.items()
-                              if ct <= future_t)
+            outbound = self._committed_outbound(t, future_t, contracts)
+            completions = self._completions_through(future_t)
             projected = self.inventory + completions - outbound
             shortfall = max(0, self.safety_stock - projected)
             max_needed = max(max_needed, shortfall)
@@ -395,14 +393,11 @@ class agent:
         # Used by can_chain_deliver to test feasibility of additional commitments
         # spanning multiple future ticks of production. Conservative against
         # build-to-stock variability -- BTS may start less than the cap.
-        completions_by_T = sum(qty for ct, qty in self.production_schedule.items()
-                               if ct <= T)
+        completions_by_T = self._completions_through(T)
         if self.supply_fn is None or T < t + self.production_time:
             return self.inventory + completions_by_T
         latest_start = T - self.production_time
-        future_starts = max(0, self.supply_fn(t) - self.starts_today)
-        for s in range(t + 1, latest_start + 1):
-            future_starts += self.supply_fn(s)
+        future_starts = self._future_start_capacity(t, latest_start)
         return self.inventory + completions_by_T + future_starts
 
     def can_chain_deliver(self, T, t, contracts, qty=1):
@@ -422,8 +417,7 @@ class agent:
         #    split shortfall across multiple upstreams in parallel.)
         # 3. Top-tier producers have no upstream_suppliers, recursion terminates.
         projected = self.projected_capacity_throughput(T, t)
-        existing_outbound = sum(c.quantity for c in contracts
-                                if c.supplier == self and t <= c.delivery_time <= T)
+        existing_outbound = self._committed_outbound(t, T, contracts)
         if existing_outbound + qty > projected:
             return False
         if self.input_inventory is not None and self.upstream_suppliers:
@@ -432,14 +426,12 @@ class agent:
                 return False  # Can't get input before now
             # New production needed = outbound that isn't already covered by
             # finished inventory or in-progress production_schedule completions.
-            completions_by_T = sum(q for ct, q in self.production_schedule.items()
-                                   if ct <= T)
+            completions_by_T = self._completions_through(T)
             new_production_needed = max(0, (existing_outbound + qty)
                                            - self.inventory - completions_by_T)
             if new_production_needed == 0:
                 return True
-            existing_inputs = sum(c.quantity for c in contracts
-                                  if c.customer == self and t <= c.delivery_time <= input_arrival)
+            existing_inputs = contracts.inbound_qty(self, t, input_arrival)
             input_shortfall = max(0, new_production_needed - self.input_inventory - existing_inputs)
             if input_shortfall == 0:
                 return True
@@ -517,22 +509,16 @@ class agent:
         #                 Reservation cost = replacement_cost(t, delivery_time).
         # Resale of existing committed contracts is handled separately by the auction
         # fallback when neither bucket has capacity.
-        completions_by_T = sum(qty for ct, qty in self.production_schedule.items()
-                               if ct <= delivery_time)
-        outbound_by_T = sum(c.quantity for c in contracts
-                            if c.supplier == self and t <= c.delivery_time <= delivery_time)
+        completions_by_T = self._completions_through(delivery_time)
+        outbound_by_T = self._committed_outbound(t, delivery_time, contracts)
         atp = self.inventory + completions_by_T - outbound_by_T
         excess = max(0, atp - self.safety_stock)
         new_prod = 0
         if delivery_time >= t + self.production_time and self.supply_fn is not None:
             latest_start = delivery_time - self.production_time
-            window_capacity = max(0, self.supply_fn(t) - self.starts_today)
-            for s in range(t + 1, latest_start + 1):
-                window_capacity += self.supply_fn(s)
+            window_capacity = self._future_start_capacity(t, latest_start)
             earliest_delivery = t + self.production_time
-            outbound_in_window = sum(c.quantity for c in contracts
-                                     if c.supplier == self
-                                     and earliest_delivery <= c.delivery_time <= delivery_time)
+            outbound_in_window = self._committed_outbound(earliest_delivery, delivery_time, contracts)
             completions_in_window = sum(qty for ct, qty in self.production_schedule.items()
                                         if earliest_delivery <= ct <= delivery_time)
             soft_commitments = max(0, outbound_in_window - completions_in_window)
