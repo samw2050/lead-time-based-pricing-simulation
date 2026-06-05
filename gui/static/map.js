@@ -4,6 +4,9 @@
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const R_MIN = 8, R_MAX = 34;
+// Fixed radius for the synthetic raw-materials / end-customer framing nodes
+// (they have no metric to scale by).
+const R_FIXED = 14;
 
 const MapView = (() => {
   let svg, width = 1000, height = 360;
@@ -14,7 +17,15 @@ const MapView = (() => {
   function init() {
     svg = document.getElementById("map");
     resize();
-    window.addEventListener("resize", () => { resize(); if (lastTiers) render(lastTiers, []); });
+    window.addEventListener("resize", refresh);
+  }
+
+  // Re-measure the SVG and redraw at the current size. Call after anything that
+  // changes the map's container width without firing a window resize (e.g. the
+  // readout sidebar collapsing/expanding).
+  function refresh() {
+    resize();
+    if (lastTiers) render(lastTiers, []);
   }
 
   function resize() {
@@ -54,7 +65,9 @@ const MapView = (() => {
     positions = {};
 
     const nTiers = tiers.length;
-    const colGap = width / (nTiers + 1);
+    // Two synthetic columns frame the chain: raw materials on the left, end
+    // customer on the right. Lay out (nTiers + 2) evenly spaced columns.
+    const colGap = width / (nTiers + 3);
     const allValues = [];
     tiers.forEach(t => t.agents.forEach(a => allValues.push(metricValue(a))));
     const rOf = radiusScale(allValues);
@@ -64,9 +77,17 @@ const MapView = (() => {
     const nodeLayer = el("g", {}, svg);
     const fxLayer = el("g", {}, svg);
 
-    // Position nodes.
+    // Position nodes. Real tiers occupy columns 2..nTiers+1; the framing nodes
+    // take column 1 (raw) and column nTiers+2 (end). The end node is keyed "end"
+    // to match the customer field on retailer->consumer delivery/failure events.
+    const midY = height / 2 + 18;
+    const rawX = colGap;
+    const endX = colGap * (nTiers + 2);
+    positions["__raw"] = { x: rawX, y: midY };
+    positions["end"] = { x: endX, y: midY };
+
     tiers.forEach((tier, ti) => {
-      const x = colGap * (ti + 1);
+      const x = colGap * (ti + 2);
       const rowGap = height / (tier.agents.length + 1);
       el("text", { x, y: 22, class: "tier-label" }, nodeLayer).textContent = tier.name;
       tier.agents.forEach((a, ai) => {
@@ -75,15 +96,33 @@ const MapView = (() => {
       });
     });
 
-    // Edges (active contracts).
+    // Edge registry (keyed "supplier->customer") so events can flash an existing
+    // edge that sits under the nodes, rather than drawing a fresh line on top.
     MapView._edgeEls = {};
+
+    // Static framing edges: raw materials -> each top-tier producer, and each
+    // bottom-tier retailer -> end customer. Registered so an "end" failure flashes
+    // these underneath lines instead of a transient one over the nodes.
+    if (nTiers) {
+      const raw = positions["__raw"], end = positions["end"];
+      tiers[0].agents.forEach(a => {
+        const p = positions[a.name];
+        MapView._edgeEls["__raw->" + a.name] =
+          el("line", { x1: raw.x, y1: raw.y, x2: p.x, y2: p.y, class: "edge" }, edgeLayer);
+      });
+      tiers[nTiers - 1].agents.forEach(a => {
+        const p = positions[a.name];
+        MapView._edgeEls[a.name + "->end"] =
+          el("line", { x1: p.x, y1: p.y, x2: end.x, y2: end.y, class: "edge" }, edgeLayer);
+      });
+    }
+
+    // Edges (active contracts).
     (window._lastEdges || []).forEach(e => {
       const s = positions[e.supplier], c = positions[e.customer];
       if (!s || !c) return;
-      const line = el("line", {
-        x1: s.x, y1: s.y, x2: c.x, y2: c.y, class: "edge",
-      }, edgeLayer);
-      MapView._edgeEls[e.supplier + "->" + e.customer] = line;
+      MapView._edgeEls[e.supplier + "->" + e.customer] =
+        el("line", { x1: s.x, y1: s.y, x2: c.x, y2: c.y, class: "edge" }, edgeLayer);
     });
 
     // Nodes.
@@ -97,11 +136,25 @@ const MapView = (() => {
       });
     });
 
+    // Framing nodes (raw materials / end customer), same style as agent nodes.
+    [[rawX, "raw materials"], [endX, "end customer"]].forEach(([x, label]) => {
+      el("text", { x, y: 22, class: "tier-label" }, nodeLayer).textContent = label;
+      el("circle", { cx: x, cy: midY, r: R_FIXED, class: "node" }, nodeLayer);
+    });
+
     MapView._fxLayer = fxLayer;
     playEvents(events);
   }
 
   function setEdges(edges) { window._lastEdges = edges; }
+
+  // Glide a delivery token from the raw-materials node into each top-tier
+  // producer -- the exogenous raw supply feeding the chain each tick. Called once
+  // per applied snapshot (not on resize, so it doesn't fire on redraw).
+  function flowRaw() {
+    if (!lastTiers || !lastTiers.length) return;
+    lastTiers[0].agents.forEach(a => animateToken("__raw", a.name));
+  }
 
   // Animate this tick's events on top of the current layout.
   function playEvents(events) {
@@ -156,5 +209,5 @@ const MapView = (() => {
     setTimeout(() => tmp.remove(), 500);
   }
 
-  return { init, render, setMetric, setEdges };
+  return { init, render, setMetric, setEdges, refresh, flowRaw };
 })();

@@ -12,6 +12,9 @@
     $("tick-label").textContent = "t = " + snap.t;
     MapView.setEdges(snap.edges || []);
     MapView.render(snap.tiers, snap.events || []);
+    // Raw-supply tokens represent a tick advancing; skip on the initial load
+    // snapshot (resetGraph), where the sim hasn't stepped yet.
+    if (!resetGraph) MapView.flowRaw();
     if (resetGraph) GraphView.reset();
     else GraphView.push(snap.t, snap.events || []);
     BumpView.update(snap.bump_curves || []);
@@ -316,6 +319,11 @@
     $("toggle-readout").onclick = () => {
       $("readout-panel").classList.toggle("collapsed");
     };
+    // The panel animates its flex-basis (.2s); re-measure the map once it settles
+    // so the map fills the reclaimed width instead of staying bunched up.
+    $("readout-panel").addEventListener("transitionend", (e) => {
+      if (e.propertyName === "flex-basis") MapView.refresh();
+    });
     $("sb-add-tier").onclick = () => $("sb-tiers").appendChild(makeTierBlock());
     $("sb-save").onclick = saveScenario;
 
