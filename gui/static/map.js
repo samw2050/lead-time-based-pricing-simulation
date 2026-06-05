@@ -48,6 +48,40 @@ const MapView = (() => {
     return (v) => R_MIN + (R_MAX - R_MIN) * (Math.abs(v) / max);
   }
 
+  // Named pastels, each tuned individually -- a single global saturation makes
+  // yellow wash out to beige and green look too vivid, so [hue, sat%, light%] is
+  // set per colour.
+  const PASTEL = {
+    red:    [0, 65, 78],
+    orange: [30, 65, 78],
+    yellow: [53, 95, 83],
+    green:  [128, 48, 73],
+    blue:   [215, 65, 78],
+    purple: [280, 65, 78],
+  };
+
+  // Hand-picked colour sequences for small column counts (the columns are the
+  // raw-materials node, each tier, then the end-customer node). Keeps the spectrum
+  // looking deliberate at low counts; 7+ falls back to an even hue spread.
+  const SPECTRUM = {
+    3: ["red", "yellow", "blue"],
+    4: ["red", "yellow", "green", "blue"],
+    5: ["red", "yellow", "green", "blue", "purple"],
+    6: ["red", "orange", "yellow", "green", "blue", "purple"],
+  };
+
+  // Pastel fill for column `idx` of `total`, spanning red (leftmost) -> purple
+  // (rightmost) so the gradient runs across the whole chain.
+  function spectrumColor(idx, total) {
+    const names = SPECTRUM[total];
+    if (names) {
+      const [h, s, l] = PASTEL[names[idx]];
+      return `hsl(${h}, ${s}%, ${l}%)`;
+    }
+    const hue = total > 1 ? (idx / (total - 1)) * 280 : 0;
+    return `hsl(${hue}, 65%, 78%)`;
+  }
+
   function clear() {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
   }
@@ -141,21 +175,25 @@ const MapView = (() => {
       }
     }
 
-    // Nodes.
-    tiers.forEach((tier) => {
+    // Nodes. Each tier shares a pastel colour spanning red (left) -> purple
+    // (right); column 0 is the raw node and column nTiers+1 is the end node.
+    const nCols = nTiers + 2;
+    tiers.forEach((tier, ti) => {
+      const fill = spectrumColor(ti + 1, nCols);
       tier.agents.forEach((a) => {
         const p = positions[a.name];
         const r = rOf(metricValue(a));
-        el("circle", { cx: p.x, cy: p.y, r, class: "node" }, nodeLayer);
+        el("circle", { cx: p.x, cy: p.y, r, class: "node", style: `fill:${fill}` }, nodeLayer);
         const label = el("text", { x: p.x, y: p.y + r + 13, class: "node-label" }, nodeLayer);
         label.textContent = a.name;
       });
     });
 
-    // Framing nodes (raw materials / end customer), same style as agent nodes.
-    [[rawX, "raw materials"], [endX, "end customer"]].forEach(([x, label]) => {
+    // Framing nodes (raw materials / end customer), same style as agent nodes and
+    // coloured as the first/last columns of the spectrum.
+    [[rawX, "raw materials", 0], [endX, "end customer", nCols - 1]].forEach(([x, label, idx]) => {
       el("text", { x, y: 22, class: "tier-label" }, nodeLayer).textContent = label;
-      el("circle", { cx: x, cy: midY, r: R_FIXED, class: "node" }, nodeLayer);
+      el("circle", { cx: x, cy: midY, r: R_FIXED, class: "node", style: `fill:${spectrumColor(idx, nCols)}` }, nodeLayer);
     });
 
     MapView._fxLayer = fxLayer;
