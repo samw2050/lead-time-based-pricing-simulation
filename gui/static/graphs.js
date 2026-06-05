@@ -10,22 +10,22 @@ const GraphView = (() => {
       data: {
         labels: [],
         datasets: [
-          { label: "deliveries", data: [], borderColor: "#36d399",
-            backgroundColor: "#36d39933", tension: 0.2, pointRadius: 0 },
-          { label: "failed deliveries", data: [], borderColor: "#ff5d5d",
-            backgroundColor: "#ff5d5d33", tension: 0.2, pointRadius: 0 },
-          { label: "bumps (re-routes)", data: [], borderColor: "#f5b942",
-            backgroundColor: "#f5b94233", tension: 0.2, pointRadius: 0 },
+          { label: "deliveries", data: [], borderColor: "#16a34a",
+            backgroundColor: "#16a34a22", tension: 0.2, pointRadius: 0 },
+          { label: "failed deliveries", data: [], borderColor: "#dc2626",
+            backgroundColor: "#dc262622", tension: 0.2, pointRadius: 0 },
+          { label: "bumps (re-routes)", data: [], borderColor: "#d97706",
+            backgroundColor: "#d9770622", tension: 0.2, pointRadius: 0 },
         ],
       },
       options: {
         responsive: true,
         animation: false,
         scales: {
-          x: { ticks: { color: "#8a93a6" }, grid: { color: "#2a3245" }, title: { display: true, text: "tick", color: "#8a93a6" } },
-          y: { ticks: { color: "#8a93a6" }, grid: { color: "#2a3245" }, beginAtZero: true },
+          x: { ticks: { color: "#6b7280" }, grid: { color: "#e5e7eb" }, title: { display: true, text: "tick", color: "#6b7280" } },
+          y: { ticks: { color: "#6b7280" }, grid: { color: "#e5e7eb" }, beginAtZero: true },
         },
-        plugins: { legend: { labels: { color: "#e6ebf5" } } },
+        plugins: { legend: { labels: { color: "#1a1f2b" } } },
       },
     });
   }

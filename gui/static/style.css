@@ -1,14 +1,16 @@
 :root {
-  --bg: #0f1420;
-  --panel: #1a2030;
-  --panel-2: #232b3d;
-  --ink: #e6ebf5;
-  --muted: #8a93a6;
-  --accent: #4da3ff;
-  --flow: #36d399;
-  --fail: #ff5d5d;
-  --bump: #f5b942;
-  --edge: #3a4760;
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f4f5f7;
+  --ink: #1a1f2b;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --flow: #16a34a;
+  --fail: #dc2626;
+  --bump: #d97706;
+  --edge: #cbd5e1;
+  --line: #d0d4db;
+  --border: #d9dce3;
 }
 
 * { box-sizing: border-box; }
@@ -27,12 +29,17 @@ header {
   gap: 16px;
   padding: 10px 16px;
   background: var(--panel);
-  border-bottom: 1px solid #2a3245;
+  border-bottom: 1px solid var(--line);
 }
 header h1 { font-size: 18px; margin: 0; }
 .tick-label { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; }
 
-section { padding: 12px 16px; }
+/* Full-width containers stacked with a grey divider between each. */
+section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+section:last-of-type { border-bottom: none; }
 h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 
 /* --- top: map + readout share one box --- */
@@ -40,9 +47,7 @@ h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppe
   display: flex;
   align-items: stretch;
   background: var(--panel);
-  border-radius: 8px;
   overflow: hidden;
-  margin: 12px 16px;
   padding: 0;
   height: 380px;
 }
@@ -68,7 +73,7 @@ h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppe
   position: relative;
   flex: 0 0 360px;
   background: var(--panel-2);
-  border-left: 1px solid #2a3245;
+  border-left: 1px solid var(--line);
   display: flex; flex-direction: column;
   min-height: 0;
   transition: flex-basis .2s ease;
@@ -85,7 +90,7 @@ h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppe
   padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: var(--panel-2);
-  border: 1px solid #2a3245;
+  border: 1px solid var(--border);
   border-right: none;
   border-radius: 6px 0 0 6px;
   color: var(--muted);
@@ -101,7 +106,7 @@ h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppe
 .readout-panel.collapsed .readout-tab-arrow { transform: rotate(180deg); }
 .readout-head {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 10px; border-bottom: 1px solid #2a3245; color: var(--muted);
+  padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--muted);
   white-space: nowrap;
 }
 .readout-panel.collapsed .readout-head,
@@ -109,20 +114,20 @@ h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppe
 #readout {
   margin: 0; padding: 8px 10px; overflow: auto; flex: 1 1 auto; min-height: 0;
   font-family: "Cascadia Code", Consolas, monospace; font-size: 11px;
-  white-space: pre-wrap; color: #b9c2d6;
+  white-space: pre-wrap; color: var(--ink);
 }
 
 /* --- controls --- */
 .controls {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  background: var(--panel); border-radius: 8px; margin: 0 16px;
+  background: var(--panel);
 }
 .controls .speed { display: inline-flex; align-items: center; gap: 6px; }
 .status-msg { color: var(--muted); font-size: 12px; }
 
 button {
   background: var(--panel-2); color: var(--ink);
-  border: 1px solid #344056; border-radius: 6px;
+  border: 1px solid var(--border); border-radius: 6px;
   padding: 6px 12px; cursor: pointer; font-size: 13px;
 }
 button:hover:not(:disabled) { border-color: var(--accent); }
@@ -130,7 +135,7 @@ button:disabled { opacity: .4; cursor: default; }
 button.small { padding: 2px 8px; font-size: 12px; }
 select, input[type=text], input[type=number] {
   background: var(--panel-2); color: var(--ink);
-  border: 1px solid #344056; border-radius: 6px; padding: 5px 8px;
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
 }
 input[type=number] { width: 80px; }
 label { color: var(--muted); }
@@ -147,8 +152,8 @@ label { color: var(--muted); }
   width: min(900px, 100%);
   max-height: 90vh;
   overflow: auto;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
-  border: 1px solid #2a3245;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+  border: 1px solid var(--border);
 }
 .modal-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -167,7 +172,7 @@ label { color: var(--muted); }
 .builder-actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
 
 .sb-tier {
-  border: 1px solid #2a3245; border-radius: 8px; padding: 10px;
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px;
   margin-bottom: 10px; background: var(--panel-2);
 }
 .sb-tier-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
@@ -176,6 +181,7 @@ label { color: var(--muted); }
 .sb-agent {
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   padding: 6px; border-radius: 6px; background: var(--panel);
+  border: 1px solid var(--border);
 }
 .sb-agent label { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
 .sb-agent input { width: 70px; }
@@ -183,14 +189,14 @@ label { color: var(--muted); }
 .sb-row-actions { display: flex; gap: 8px; margin-top: 6px; }
 
 /* --- graphs --- */
-.graphs { background: var(--panel); border-radius: 8px; margin: 0 16px 16px; }
+.graphs { background: var(--panel); }
 #chart { max-height: 240px; }
 
 /* --- map SVG elements --- */
-.edge { stroke: #3a4760; stroke-width: 1.5; opacity: .5; }
+.edge { stroke: var(--edge); stroke-width: 1.5; opacity: .8; }
 .edge.flash-fail { stroke: var(--fail); stroke-width: 3; opacity: 1; }
 .edge.flash-bump { stroke: var(--bump); stroke-width: 2.5; opacity: 1; stroke-dasharray: 5 4; }
-.node { fill: var(--accent); stroke: #0f1420; stroke-width: 1.5; }
+.node { fill: var(--accent); stroke: var(--bg); stroke-width: 1.5; }
 .node-label { fill: var(--ink); font-size: 11px; text-anchor: middle; }
 .tier-label { fill: var(--muted); font-size: 12px; text-anchor: middle; text-transform: uppercase; letter-spacing: .05em; }
 .token { fill: var(--flow); }
