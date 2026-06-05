@@ -117,13 +117,29 @@ const MapView = (() => {
       });
     }
 
-    // Edges (active contracts).
-    (window._lastEdges || []).forEach(e => {
-      const s = positions[e.supplier], c = positions[e.customer];
-      if (!s || !c) return;
-      MapView._edgeEls[e.supplier + "->" + e.customer] =
-        el("line", { x1: s.x, y1: s.y, x2: c.x, y2: c.y, class: "edge" }, edgeLayer);
-    });
+    // Inter-tier links. Once contracts exist, draw one edge per active
+    // supplier->customer pair. Before any do (e.g. a freshly loaded sim), draw the
+    // full set of potential buyer<-supplier relationships -- every agent links to
+    // each agent in the tier directly above it -- so the network is clear up front.
+    const active = window._lastEdges || [];
+    if (active.length) {
+      active.forEach(e => {
+        const s = positions[e.supplier], c = positions[e.customer];
+        if (!s || !c) return;
+        MapView._edgeEls[e.supplier + "->" + e.customer] =
+          el("line", { x1: s.x, y1: s.y, x2: c.x, y2: c.y, class: "edge" }, edgeLayer);
+      });
+    } else {
+      for (let i = 1; i < nTiers; i++) {
+        tiers[i].agents.forEach(buyer => {
+          const c = positions[buyer.name];
+          tiers[i - 1].agents.forEach(sup => {
+            const s = positions[sup.name];
+            el("line", { x1: s.x, y1: s.y, x2: c.x, y2: c.y, class: "edge" }, edgeLayer);
+          });
+        });
+      }
+    }
 
     // Nodes.
     tiers.forEach((tier) => {
