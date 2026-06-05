@@ -58,24 +58,30 @@
       <input type="range" id="speed" min="0.5" max="20" step="0.5" value="2">
       <span id="speed-val">2</span>/s
     </label>
+    <button id="btn-open-builder">&#9881; Scenario builder</button>
     <span id="status-msg" class="status-msg"></span>
   </section>
 
-  <!-- 4: scenario builder -->
-  <section class="builder">
-    <h2>Scenario builder</h2>
-    <div class="builder-meta">
-      <label>Name <input type="text" id="sb-name" value="my_scenario"></label>
-      <label>Forecast window <input type="number" id="sb-fw" value="12" min="1"></label>
-      <label>Length (ticks) <input type="number" id="sb-len" value="120" min="1"></label>
+  <!-- 4: scenario builder (modal popup) -->
+  <div id="builder-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="builder-title">
+    <div class="modal-card builder">
+      <div class="modal-head">
+        <h2 id="builder-title">Scenario builder</h2>
+        <button id="btn-close-builder" class="modal-close" aria-label="Close scenario builder">&times;</button>
+      </div>
+      <div class="builder-meta">
+        <label>Name <input type="text" id="sb-name" value="my_scenario"></label>
+        <label>Forecast window <input type="number" id="sb-fw" value="12" min="1"></label>
+        <label>Length (ticks) <input type="number" id="sb-len" value="120" min="1"></label>
+      </div>
+      <div id="sb-tiers"></div>
+      <div class="builder-actions">
+        <button id="sb-add-tier">+ Add tier</button>
+        <button id="sb-save">Save scenario</button>
+        <span id="sb-msg" class="status-msg"></span>
+      </div>
     </div>
-    <div id="sb-tiers"></div>
-    <div class="builder-actions">
-      <button id="sb-add-tier">+ Add tier</button>
-      <button id="sb-save">Save scenario</button>
-      <span id="sb-msg" class="status-msg"></span>
-    </div>
-  </section>
+  </div>
 
   <!-- 5: graphs -->
   <section class="graphs">

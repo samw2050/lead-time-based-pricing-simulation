@@ -295,6 +295,12 @@
     await refreshScenarioList(name);
   }
 
+  // --- builder modal -------------------------------------------------------
+
+  function openBuilder() { $("builder-modal").classList.remove("hidden"); }
+  function closeBuilder() { $("builder-modal").classList.add("hidden"); }
+  function isBuilderOpen() { return !$("builder-modal").classList.contains("hidden"); }
+
   // --- init ----------------------------------------------------------------
 
   function bind() {
@@ -309,6 +315,16 @@
     };
     $("sb-add-tier").onclick = () => $("sb-tiers").appendChild(makeTierBlock());
     $("sb-save").onclick = saveScenario;
+
+    // builder modal: open via button, close via ×, backdrop click, or Escape
+    $("btn-open-builder").onclick = openBuilder;
+    $("btn-close-builder").onclick = closeBuilder;
+    $("builder-modal").onclick = (e) => {
+      if (e.target === $("builder-modal")) closeBuilder();
+    };
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && isBuilderOpen()) closeBuilder();
+    });
   }
 
   window.addEventListener("DOMContentLoaded", async () => {
