@@ -58,26 +58,38 @@ def snapshot(sim, log_text=""):
 
     # Bump-probability beliefs: one curve per directed (buyer <- supplier) pair.
     # Each buyer holds a fitted logistic (w0, w_lead, w_stake) about each upstream
-    # supplier. The frontend draws
-    #     P(bump) = sigmoid(a + b * lead_frac + c * stake)
-    # evaluated at the pair's MEDIAN observed stake (price + penalty). Holding the
-    # stake term at a value the data actually saw -- rather than dropping it / using
-    # stake = 0 -- keeps the curve in-distribution: the intercept and stake term are
-    # strongly anti-correlated in the fit, so zeroing stake makes the bare intercept
-    # blow the curve up to ~1 and lets lead/stake confounding flip the slope.
+    # supplier. Two graphs slice this surface, each holding the OTHER input at the
+    # pair's median observed value so the curve stays in-distribution:
+    #   * vs lead:  P(bump) = sigmoid(a + b * lead + c * stake_median)
+    #   * vs stake: P(bump) = sigmoid(a + b * lead_median + c * stake)
+    # Holding the held-out term at a value the data actually saw -- rather than
+    # dropping it -- avoids the intercept/stake collinearity blowing the curve up.
     bump_curves = []
+    all_stakes = []
     for buyer in sim.all_agents:
         for supplier in getattr(buyer, "upstream_suppliers", None) or []:
             w0, w_lead, w_stake = buyer.model_params(supplier)
             obs = buyer.observations.get(supplier, [])
-            stake_med = statistics.median([o[1] for o in obs]) if obs else 0.0
+            stakes = [o[1] for o in obs]
+            leads = [o[0] for o in obs]
+            all_stakes.extend(stakes)
             bump_curves.append({
                 "label": f"{buyer.name} ← {supplier.name}",
                 "a": float(w0),
                 "b": float(w_lead),
                 "c": float(w_stake),
-                "stake": float(stake_med),
+                "stake": float(statistics.median(stakes)) if stakes else 0.0,
+                "lead": float(statistics.median(leads)) if leads else 0.5,
             })
+
+    # Shared x-axis upper bound for the price+penalty graph. Use a high percentile
+    # rather than the max so rare runaway-stake outliers don't compress the axis.
+    if all_stakes:
+        all_stakes.sort()
+        hi = all_stakes[min(len(all_stakes) - 1, int(0.9 * len(all_stakes)))]
+    else:
+        hi = 0.0
+    stake_axis = [0.0, float(hi) if hi > 0 else 500.0]
 
     return {
         "t": sim.t,
@@ -86,5 +98,6 @@ def snapshot(sim, log_text=""):
         "edges": edges,
         "events": list(sim.events),
         "bump_curves": bump_curves,
+        "stake_axis": stake_axis,
         "log": log_text,
     }

@@ -15,6 +15,7 @@
     if (resetGraph) GraphView.reset();
     else GraphView.push(snap.t, snap.events || []);
     BumpView.update(snap.bump_curves || []);
+    StakeView.update(snap.bump_curves || [], snap.stake_axis);
     if (snap.log) appendReadout(snap.log);
     if (snap.done) {
       stopStream();
@@ -333,6 +334,7 @@
     MapView.init();
     GraphView.init();
     BumpView.init();
+    StakeView.init();
     bind();
     await refreshScenarioList("default");
     // Seed the builder with one example tier.
