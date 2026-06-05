@@ -190,7 +190,20 @@ label { color: var(--muted); }
 
 /* --- graphs --- */
 .graphs { background: var(--panel); }
+/* Header doubles as a collapse toggle, with a disclosure triangle. */
+.graphs h2 {
+  cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.graphs h2::before {
+  content: "\25BC"; font-size: 9px; line-height: 1;
+  transition: transform .15s ease;
+}
+.graphs.collapsed h2::before { transform: rotate(-90deg); }
+/* !important to override the inline display:block Chart.js sets on the canvas. */
+.graphs.collapsed canvas { display: none !important; }
 #chart { max-height: 240px; }
+#bump-chart, #stake-chart { max-height: 320px; }
 
 /* --- map SVG elements --- */
 .edge { stroke: var(--edge); stroke-width: 1.5; opacity: .8; }

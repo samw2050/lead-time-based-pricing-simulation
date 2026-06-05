@@ -327,6 +327,11 @@
     $("sb-add-tier").onclick = () => $("sb-tiers").appendChild(makeTierBlock());
     $("sb-save").onclick = saveScenario;
 
+    // Collapsible graph sections: clicking the header hides/shows its chart.
+    document.querySelectorAll(".graphs h2").forEach(h => {
+      h.onclick = () => h.parentElement.classList.toggle("collapsed");
+    });
+
     // builder modal: open via button, close via ×, backdrop click, or Escape
     $("btn-open-builder").onclick = openBuilder;
     $("btn-close-builder").onclick = closeBuilder;

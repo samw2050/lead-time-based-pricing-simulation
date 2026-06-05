@@ -7,10 +7,10 @@
       "name": "tier2",
       "role": "producer",
       "agents": [
-        {"name": "tier2_1", "cost": 50,
+        {"name": "Tier 2 A", "cost": 50,
          "supply": {"type": "linear", "start": 50, "slope": 0, "floor": 0},
          "production_time": 2, "inventory": 50, "safety_stock": 50, "penalty_scale": 1},
-        {"name": "tier2_2", "cost": 50,
+        {"name": "Tier 2 B", "cost": 50,
          "supply": {"type": "linear", "start": 50, "slope": 0, "floor": 0},
          "production_time": 2, "inventory": 50, "safety_stock": 50, "penalty_scale": 1}
       ]
@@ -19,12 +19,12 @@
       "name": "tier1",
       "role": "intermediary",
       "agents": [
-        {"name": "tier1_1", "cost": 60, "production_cost": 12,
+        {"name": "Tier 1 A", "cost": 60, "production_cost": 12,
          "supply": {"type": "linear", "start": 50, "slope": 0, "floor": 0},
          "production_time": 2, "inventory": 50, "input_inventory": 50,
          "safety_stock": 50, "revenue_forecast": {"type": "fixed", "quantity": 100},
          "penalty_scale": 1.1},
-        {"name": "tier1_2", "cost": 60, "production_cost": 12,
+        {"name": "Tier 1 B", "cost": 60, "production_cost": 12,
          "supply": {"type": "linear", "start": 50, "slope": 0, "floor": 0},
          "production_time": 2, "inventory": 50, "input_inventory": 50,
          "safety_stock": 50, "revenue_forecast": {"type": "fixed", "quantity": 100},
@@ -32,18 +32,18 @@
       ]
     },
     {
-      "name": "oem",
+      "name": "OEM",
       "role": "retailer",
       "agents": [
-        {"name": "oem_1", "demand": {"type": "sinusoidal", "base": 50, "magnitude": 10, "frequency": 6},
+        {"name": "OEM A", "demand": {"type": "sinusoidal", "base": 50, "magnitude": 10, "frequency": 6},
          "revenue": {"type": "linear", "start": 130, "slope": 1},
          "revenue_forecast": {"type": "linear", "start": 130, "slope": 1},
          "safety_stock": 5, "inventory": 5},
-        {"name": "oem_2", "demand": {"type": "sinusoidal", "base": 80, "magnitude": 15, "frequency": 6, "phase": 90},
+        {"name": "OEM B", "demand": {"type": "sinusoidal", "base": 80, "magnitude": 15, "frequency": 6, "phase": 90},
          "revenue": {"type": "linear", "start": 120, "slope": 1},
          "revenue_forecast": {"type": "linear", "start": 120, "slope": 1},
          "safety_stock": 20, "inventory": 20},
-        {"name": "oem_3", "demand": {"type": "sinusoidal", "base": 20, "magnitude": 3, "frequency": 6, "phase": 180},
+        {"name": "OEM C", "demand": {"type": "sinusoidal", "base": 20, "magnitude": 3, "frequency": 6, "phase": 180},
          "revenue": {"type": "linear", "start": 140, "slope": 1},
          "revenue_forecast": {"type": "linear", "start": 140, "slope": 1},
          "safety_stock": 2, "inventory": 2}
