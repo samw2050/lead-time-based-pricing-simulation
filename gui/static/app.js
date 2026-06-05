@@ -14,6 +14,7 @@
     MapView.render(snap.tiers, snap.events || []);
     if (resetGraph) GraphView.reset();
     else GraphView.push(snap.t, snap.events || []);
+    BumpView.update(snap.bump_curves || []);
     if (snap.log) appendReadout(snap.log);
     if (snap.done) {
       stopStream();
@@ -277,6 +278,7 @@
     return {
       forecast_window: parseInt($("sb-fw").value, 10) || 12,
       simulation_length: parseInt($("sb-len").value, 10) || 120,
+      obs_window: parseInt($("sb-obs").value, 10) || 300,
       tiers,
     };
   }
@@ -330,6 +332,7 @@
   window.addEventListener("DOMContentLoaded", async () => {
     MapView.init();
     GraphView.init();
+    BumpView.init();
     bind();
     await refreshScenarioList("default");
     // Seed the builder with one example tier.

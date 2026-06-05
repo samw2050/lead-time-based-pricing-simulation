@@ -73,6 +73,7 @@
         <label>Name <input type="text" id="sb-name" value="my_scenario"></label>
         <label>Forecast window <input type="number" id="sb-fw" value="12" min="1"></label>
         <label>Length (ticks) <input type="number" id="sb-len" value="120" min="1"></label>
+        <label>Obs window <input type="number" id="sb-obs" value="300" min="1"></label>
       </div>
       <div id="sb-tiers"></div>
       <div class="builder-actions">
@@ -87,6 +88,12 @@
   <section class="graphs">
     <h2>Deliveries vs. failures</h2>
     <canvas id="chart"></canvas>
+  </section>
+
+  <!-- 6: bump probability vs lead time -->
+  <section class="graphs">
+    <h2>Bump probability vs. lead time</h2>
+    <canvas id="bump-chart"></canvas>
   </section>
 
   <script src="{{ url_for('static', filename='map.js') }}"></script>

@@ -79,9 +79,10 @@ _SCHEDULE_FIELDS = {
 }
 
 
-def build_agent(spec, fallback_name):
+def build_agent(spec, fallback_name, obs_window=300):
     """Construct one agent from its dict spec. Absent keys fall back to the
-    agent constructor defaults, so a sparse spec is fine."""
+    agent constructor defaults, so a sparse spec is fine. ``obs_window`` is the
+    scenario-level bump-model memory length, applied to every agent."""
     spec = dict(spec)
     kwargs = {"name": spec.get("name", fallback_name)}
     for field in _SCALAR_FIELDS:
@@ -90,10 +91,11 @@ def build_agent(spec, fallback_name):
     for field, kwarg in _SCHEDULE_FIELDS.items():
         if field in spec and spec[field] is not None:
             kwargs[kwarg] = build_schedule(spec[field])
+    kwargs["obs_window"] = obs_window
     return agent(**kwargs)
 
 
-def build_tier(spec):
+def build_tier(spec, obs_window=300):
     """Construct one Tier, supporting both an explicit ``agents`` list and the
     ``count`` + ``defaults`` shortcut."""
     spec = dict(spec)
@@ -108,13 +110,17 @@ def build_tier(spec):
 
     agents = []
     for i, a_spec in enumerate(agent_specs, start=1):
-        agents.append(build_agent(a_spec, fallback_name=f"{name}_{i}"))
+        agents.append(build_agent(a_spec, fallback_name=f"{name}_{i}",
+                                   obs_window=obs_window))
     return Tier(name, role=role, agents=agents)
 
 
 def build_simulation(config):
     """Top-level entry: a scenario dict -> a constructed (un-run) Simulation."""
-    tiers = [build_tier(t) for t in config["tiers"]]
+    # obs_window: bump-model memory length (number of recent observations kept per
+    # supplier). null -> unbounded history. Applied to every agent in the scenario.
+    obs_window = config.get("obs_window", 300)
+    tiers = [build_tier(t, obs_window=obs_window) for t in config["tiers"]]
     return Simulation(
         tiers=tiers,
         forecast_window=int(config.get("forecast_window", 12)),

@@ -6,6 +6,8 @@ map), this tick's events (for animations + the graph) and the captured stdout
 text (for the readout panel).
 """
 
+import statistics
+
 
 def _agent_state(a):
     wip = sum(a.production_schedule.values()) if a.production_schedule else 0
@@ -54,11 +56,35 @@ def snapshot(sim, log_text=""):
         e["count"] += 1
     edges = [{**e, "qty": round(e["qty"], 2)} for e in edge_map.values()]
 
+    # Bump-probability beliefs: one curve per directed (buyer <- supplier) pair.
+    # Each buyer holds a fitted logistic (w0, w_lead, w_stake) about each upstream
+    # supplier. The frontend draws
+    #     P(bump) = sigmoid(a + b * lead_frac + c * stake)
+    # evaluated at the pair's MEDIAN observed stake (price + penalty). Holding the
+    # stake term at a value the data actually saw -- rather than dropping it / using
+    # stake = 0 -- keeps the curve in-distribution: the intercept and stake term are
+    # strongly anti-correlated in the fit, so zeroing stake makes the bare intercept
+    # blow the curve up to ~1 and lets lead/stake confounding flip the slope.
+    bump_curves = []
+    for buyer in sim.all_agents:
+        for supplier in getattr(buyer, "upstream_suppliers", None) or []:
+            w0, w_lead, w_stake = buyer.model_params(supplier)
+            obs = buyer.observations.get(supplier, [])
+            stake_med = statistics.median([o[1] for o in obs]) if obs else 0.0
+            bump_curves.append({
+                "label": f"{buyer.name} ← {supplier.name}",
+                "a": float(w0),
+                "b": float(w_lead),
+                "c": float(w_stake),
+                "stake": float(stake_med),
+            })
+
     return {
         "t": sim.t,
         "done": sim.t > sim.simulation_length,
         "tiers": tiers,
         "edges": edges,
         "events": list(sim.events),
+        "bump_curves": bump_curves,
         "log": log_text,
     }

@@ -5,12 +5,25 @@ demand / supply / revenue over the planning window, learns per-supplier
 bump-probability models, and prices the units it offers each auction.
 """
 
+from collections import deque
+
 import numpy as np
 from scipy.optimize import minimize
 from scipy.special import expit
 
 from schedules import fixed
 from bump_model import DEFAULT_MODEL_SELF, DEFAULT_MODEL_OTHER
+
+
+# Box constraints on the fitted logistic (w0, w_lead, w_stake) = (a, b, c).
+# Only the stake coefficient is pinned for now: w_stake <= 0 enforces the
+# economically sane "- c * (price + penalty)" sign (c >= 0), so higher stake can
+# never raise the believed bump probability. The intercept (a) and lead slope (b)
+# are deliberately left free -- with the moving observation window letting stale
+# beliefs decay, we want to watch how they settle before deciding whether to cap.
+BUMP_BOUNDS = [(None, None),   # w0 = a       : free
+               (None, None),   # w_lead = b   : free
+               (None, 0.0)]    # w_stake = -c : <= 0  (c >= 0)
 
 
 class agent:
@@ -22,7 +35,7 @@ class agent:
                  build_to_stock_horizon=5,
                  ewma_alpha=0.3,
                  penalty_scale=1.0,
-                 min_obs_for_fit=5, l2_reg=0.1):
+                 min_obs_for_fit=5, l2_reg=0.1, obs_window=300):
         self.name = name
         self.risk_aversion = risk_aversion
         # How heavily this agent, ACTING AS A SELLER, weights a bump/renege penalty
@@ -46,13 +59,18 @@ class agent:
         # trained on delivered (label 0) vs reneged/bumped-out (label 1) contracts from
         # that supplier. Seller-side: a single self-model under key None, trained on
         # this agent's own deliveries vs own reneges/bump-outs.
-        # `observations[supplier]` accumulates (lead_frac, price+penalty, bump) triples;
+        # `observations[supplier]` is a bounded deque of the most recent
+        # (lead_frac, price+penalty, bump) triples -- maxlen=obs_window so stale
+        # beliefs decay (old failures age out once fresh data arrives), which lets a
+        # self-censored agent recover instead of staying pinned on early bad luck.
+        # obs_window=None keeps the full unbounded history.
         # `bump_models[supplier]` holds the most recently fitted (w0, w_lead, w_stake)
         # tuple. Missing entries fall back to DEFAULT_MODEL_SELF / DEFAULT_MODEL_OTHER.
         self.observations = {}
         self.bump_models = {}
         self.min_obs_for_fit = min_obs_for_fit
         self.l2_reg = l2_reg
+        self.obs_window = obs_window
         # `cost` is the all-in cost basis used by the bid optimizer (input + production
         # for intermediaries; production cost for producers). `production_cost` is the
         # value-add component used in the balance formula -- for intermediaries the
@@ -261,9 +279,10 @@ class agent:
         # the seller-side self-model). Called at delivery time for every contract
         # (bump=False on success, True on renege) and at bump time on both the
         # bumped buyer (about the seller) and the bumping seller (about self).
-        self.observations.setdefault(supplier, []).append(
-            (lead_frac, price + penalty, int(bump))
-        )
+        buf = self.observations.get(supplier)
+        if buf is None:
+            buf = self.observations[supplier] = deque(maxlen=self.obs_window)
+        buf.append((lead_frac, price + penalty, int(bump)))
 
     def fit_bump_model(self, supplier):
         # Refit the logistic model for one supplier (or self when supplier=None).
@@ -291,7 +310,7 @@ class agent:
             return X.T @ (p - y) + l2 * w
 
         x0 = np.array(self.bump_models.get(supplier, (0.0, 0.0, 0.0)))
-        result = minimize(nll, x0=x0, jac=grad, method='L-BFGS-B')
+        result = minimize(nll, x0=x0, jac=grad, method='L-BFGS-B', bounds=BUMP_BOUNDS)
         if result.success:
             self.bump_models[supplier] = tuple(float(x) for x in result.x)
 

@@ -1,6 +1,7 @@
 {
   "forecast_window": 12,
   "simulation_length": 120,
+  "obs_window": 300,
   "tiers": [
     {
       "name": "tier2",
