@@ -13,8 +13,8 @@
     <span id="tick-label" class="tick-label">t = &ndash;</span>
   </header>
 
-  <!-- 1 + 2: map and readout -->
-  <section class="top">
+  <!-- 1 + 2: map and readout share one panel -->
+  <section class="top" id="top-panel">
     <div class="map-panel">
       <div class="map-toolbar">
         <label>Dot size:
@@ -35,9 +35,11 @@
     </div>
 
     <div class="readout-panel" id="readout-panel">
+      <button id="toggle-readout" class="readout-tab" aria-label="Show/hide simulation output">
+        <span class="readout-tab-arrow">&#9654;</span>
+      </button>
       <div class="readout-head">
         <span>Simulation output</span>
-        <button id="toggle-readout" class="small">Hide</button>
       </div>
       <pre id="readout"></pre>
     </div>

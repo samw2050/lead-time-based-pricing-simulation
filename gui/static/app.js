@@ -304,10 +304,8 @@
     $("btn-load").onclick = doLoad;
     $("speed").oninput = (e) => setSpeed(e.target.value);
     $("metric-select").onchange = (e) => MapView.setMetric(e.target.value);
-    $("toggle-readout").onclick = (e) => {
-      const p = $("readout-panel");
-      p.classList.toggle("collapsed");
-      e.target.textContent = p.classList.contains("collapsed") ? "Show" : "Hide";
+    $("toggle-readout").onclick = () => {
+      $("readout-panel").classList.toggle("collapsed");
     };
     $("sb-add-tier").onclick = () => $("sb-tiers").appendChild(makeTierBlock());
     $("sb-save").onclick = saveScenario;
