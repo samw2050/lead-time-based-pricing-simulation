@@ -44,3 +44,7 @@ old/
 # User-created scenarios (keep only the default)
 gui/scenarios/*.json
 !gui/scenarios/default.json
+
+# Research scratch area: self-contained experiments (scenarios, recorder/plotter
+# helpers, and their generated CSV/HTML output). Everything new here is ignored.
+research/
