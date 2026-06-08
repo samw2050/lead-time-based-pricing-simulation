@@ -105,33 +105,63 @@
   async function refreshScenarioList(selectName) {
     const res = await fetch("/api/scenarios");
     const names = await res.json();
-    const sel = $("scenario-select");
-    sel.innerHTML = "";
-    names.forEach(n => {
-      const opt = document.createElement("option");
-      opt.value = n; opt.textContent = n;
-      sel.appendChild(opt);
+    // Populate both the run selector and the builder's "edit existing" picker.
+    [["scenario-select", selectName], ["sb-existing", selectName]].forEach(([id, want]) => {
+      const sel = $(id);
+      if (!sel) return;
+      sel.innerHTML = "";
+      names.forEach(n => {
+        const opt = document.createElement("option");
+        opt.value = n; opt.textContent = n;
+        sel.appendChild(opt);
+      });
+      if (want && names.includes(want)) sel.value = want;
     });
-    if (selectName && names.includes(selectName)) sel.value = selectName;
   }
 
   // --- scenario builder ----------------------------------------------------
 
   const ROLES = ["producer", "intermediary", "retailer"];
-  // Core agent fields exposed in the builder. type: number | schedule.
-  const AGENT_FIELDS = [
-    { key: "cost", type: "number" },
-    { key: "production_cost", type: "number" },
-    { key: "production_time", type: "number" },
-    { key: "inventory", type: "number" },
-    { key: "input_inventory", type: "number" },
-    { key: "safety_stock", type: "number" },
-    { key: "penalty_scale", type: "number" },
-    { key: "supply", type: "schedule" },
-    { key: "demand", type: "schedule" },
-    { key: "revenue", type: "schedule" },
-    { key: "revenue_forecast", type: "schedule" },
+  // Scalar agent fields shown as plain number boxes.
+  const SCALAR_FIELDS = [
+    "cost", "production_cost", "production_time", "inventory",
+    "input_inventory", "safety_stock", "penalty_scale",
   ];
+  // Schedule-valued agent fields, shown as a type dropdown + parameter boxes.
+  const SCHEDULE_FIELDS = ["supply", "demand", "revenue", "revenue_forecast"];
+
+  // Each schedule family and its parameters with default values. Mirrors the
+  // factories in model/schedules.py so the picker shows exactly what's buildable.
+  const SCHEDULE_TYPES = {
+    fixed: { quantity: 100 },
+    linear: { start: 50, slope: -1, floor: 0 },
+    sinusoidal: { base: 50, magnitude: 1, frequency: 1, phase: 0 },
+    random_uniform: { low: 0, high: 100 },
+  };
+
+  // Per-role agent defaults so a freshly-built chain actually trades out of the
+  // box (matches gui/scenarios/default.json). A field set to null / "" is left
+  // unset, falling back to the agent constructor default. These values are
+  // written straight into the builder's boxes so the user sees what they'll get.
+  const ROLE_DEFAULTS = {
+    producer: {
+      cost: 50, production_cost: "", production_time: 2,
+      inventory: 50, input_inventory: "", safety_stock: 50, penalty_scale: 1,
+      supply: { type: "linear", start: 50, slope: 0, floor: 0 },
+    },
+    intermediary: {
+      cost: 60, production_cost: 12, production_time: 2,
+      inventory: 50, input_inventory: 50, safety_stock: 50, penalty_scale: 1.1,
+      supply: { type: "linear", start: 50, slope: 0, floor: 0 },
+      revenue_forecast: { type: "fixed", quantity: 100 },
+    },
+    retailer: {
+      inventory: 5, safety_stock: 5,
+      demand: { type: "sinusoidal", base: 50, magnitude: 10, frequency: 6, phase: 0 },
+      revenue: { type: "linear", start: 130, slope: 1 },
+      revenue_forecast: { type: "linear", start: 130, slope: 1 },
+    },
+  };
 
   // "production_cost" -> "Production cost" for display labels.
   const prettyLabel = (k) => {
@@ -139,84 +169,96 @@
     return s.charAt(0).toUpperCase() + s.slice(1);
   };
 
+  function numOr(s) { const n = parseFloat(s); return isNaN(n) ? s : n; }
+  const hasVal = (v) => v !== undefined && v !== null && v !== "";
+
+  // Render the parameter boxes for one schedule type into `container`. Pre-fills
+  // from `value` (an existing schedule dict) where given, else the type default.
+  function renderSchedParams(container, type, value = {}) {
+    container.innerHTML = "";
+    const params = SCHEDULE_TYPES[type];
+    if (!params) return;
+    Object.entries(params).forEach(([p, def]) => {
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.step = "any";
+      inp.className = "sb-sched-param"; inp.dataset.p = p;
+      inp.title = p; inp.placeholder = p;
+      inp.value = value[p] !== undefined ? value[p] : def;
+      container.appendChild(inp);
+    });
+  }
+
+  // A schedule field: label + type dropdown (incl. "(none)") + its param boxes.
+  function makeScheduleField(key, value) {
+    const wrap = document.createElement("label");
+    wrap.className = "sb-sched";
+    wrap.dataset.k = key; wrap.dataset.kind = "schedule";
+
+    const title = document.createElement("span");
+    title.className = "sb-sched-title";
+    title.textContent = prettyLabel(key) + " ";
+
+    const sel = document.createElement("select");
+    sel.className = "sb-sched-type";
+    sel.appendChild(new Option("(none)", ""));
+    Object.keys(SCHEDULE_TYPES).forEach(t => sel.appendChild(new Option(prettyLabel(t), t)));
+
+    const params = document.createElement("span");
+    params.className = "sb-sched-params";
+    sel.onchange = () => renderSchedParams(params, sel.value);
+
+    if (value && value.type) {
+      sel.value = value.type;
+      renderSchedParams(params, value.type, value);
+    }
+    wrap.append(title, sel, params);
+    return wrap;
+  }
+
   function makeAgentRow(prefill = {}) {
     const wrap = document.createElement("div");
     wrap.className = "sb-agent";
+
     const nameL = document.createElement("label");
-    nameL.innerHTML = "Name ";
+    nameL.textContent = "Name ";
     const nameI = document.createElement("input");
     nameI.type = "text"; nameI.placeholder = "(auto)";
     nameI.value = prefill.name || "";
-    nameI.dataset.k = "name"; nameI.style.width = "90px";
+    nameI.dataset.k = "name"; nameI.dataset.kind = "name";
+    nameI.style.width = "90px";
     nameL.appendChild(nameI); wrap.appendChild(nameL);
 
-    AGENT_FIELDS.forEach(f => {
+    SCALAR_FIELDS.forEach(key => {
       const l = document.createElement("label");
-      l.textContent = prettyLabel(f.key) + " ";
+      l.textContent = prettyLabel(key) + " ";
       const inp = document.createElement("input");
-      inp.type = "text";
-      inp.dataset.k = f.key; inp.dataset.kind = f.type;
-      inp.placeholder = f.type === "schedule" ? "type:args" : "";
-      if (prefill[f.key] !== undefined) inp.value = stringifyField(prefill[f.key]);
+      inp.type = "number"; inp.step = "any";
+      inp.dataset.k = key; inp.dataset.kind = "number";
+      if (hasVal(prefill[key])) inp.value = prefill[key];
       l.appendChild(inp); wrap.appendChild(l);
     });
+
+    SCHEDULE_FIELDS.forEach(key => {
+      wrap.appendChild(makeScheduleField(key, prefill[key]));
+    });
+
     const del = document.createElement("button");
-    del.className = "small"; del.textContent = "×";
+    del.type = "button"; del.className = "small"; del.textContent = "×";
     del.onclick = () => wrap.remove();
     wrap.appendChild(del);
     return wrap;
   }
 
-  function stringifyField(v) {
-    if (v && typeof v === "object") {
-      // schedule dict -> "type:a,b,c" using its declared params order is hard;
-      // show as compact "type:k=v;..." which parseSchedule understands.
-      const { type, ...rest } = v;
-      const parts = Object.entries(rest).map(([k, val]) => `${k}=${val}`);
-      return type + (parts.length ? ":" + parts.join(",") : "");
-    }
-    return String(v);
-  }
-
-  // Parse a schedule cell. Accepts "fixed:quantity=100" or shorthand
-  // "linear:130,1" (positional start,slope) etc.
-  function parseSchedule(str) {
-    str = str.trim();
-    if (!str) return undefined;
-    const [type, argStr] = str.split(":");
-    const spec = { type: type.trim() };
-    if (argStr) {
-      argStr.split(",").forEach((part, i) => {
-        part = part.trim();
-        if (part.includes("=")) {
-          const [k, v] = part.split("=");
-          spec[k.trim()] = numOr(v.trim());
-        } else {
-          // positional: map by common factory signatures
-          const pos = POSITIONAL[type.trim()] || [];
-          if (pos[i]) spec[pos[i]] = numOr(part);
-        }
-      });
-    }
-    return spec;
-  }
-  const POSITIONAL = {
-    fixed: ["quantity"],
-    linear: ["start", "slope", "floor"],
-    sinusoidal: ["base", "magnitude", "frequency", "phase"],
-    random_uniform: ["low", "high"],
-  };
-  function numOr(s) { const n = parseFloat(s); return isNaN(n) ? s : n; }
-
   function makeTierBlock(prefill = {}) {
     const block = document.createElement("div");
     block.className = "sb-tier";
+    const role = prefill.role || "producer";
 
     const head = document.createElement("div");
     head.className = "sb-tier-head";
     head.innerHTML = `
       <label>Tier name <input type="text" class="sb-tier-name" value="${prefill.name || ""}"></label>
-      <label>Role <select class="sb-tier-role">${ROLES.map(r => `<option value="${r}" ${r === prefill.role ? "selected" : ""}>${prettyLabel(r)}</option>`).join("")}</select></label>
+      <label>Role <select class="sb-tier-role">${ROLES.map(r => `<option value="${r}" ${r === role ? "selected" : ""}>${prettyLabel(r)}</option>`).join("")}</select></label>
       <label class="sb-mode">Mode
         <select class="sb-tier-mode">
           <option value="list">Explicit agents</option>
@@ -233,40 +275,70 @@
     agentsWrap.className = "sb-agents";
     block.appendChild(agentsWrap);
 
+    const roleSel = head.querySelector(".sb-tier-role");
+    const modeSel = head.querySelector(".sb-tier-mode");
+
     const rowActions = document.createElement("div");
     rowActions.className = "sb-row-actions";
     const addAgent = document.createElement("button");
-    addAgent.className = "small"; addAgent.textContent = "+ Agent / default";
-    addAgent.onclick = () => agentsWrap.appendChild(makeAgentRow());
+    addAgent.type = "button"; addAgent.className = "small";
+    addAgent.textContent = "+ Agent / default";
+    addAgent.onclick = () =>
+      agentsWrap.appendChild(makeAgentRow(ROLE_DEFAULTS[roleSel.value] || {}));
     const delTier = document.createElement("button");
-    delTier.className = "small"; delTier.textContent = "× Tier";
+    delTier.type = "button"; delTier.className = "small"; delTier.textContent = "× Tier";
     delTier.onclick = () => block.remove();
     rowActions.append(addAgent, delTier);
     block.appendChild(rowActions);
 
     // mode toggle shows/hides the count field
-    head.querySelector(".sb-tier-mode").onchange = (e) => {
+    modeSel.onchange = (e) => {
       head.querySelector(".sb-count-wrap").style.display =
         e.target.value === "count" ? "inline" : "none";
     };
+    // Changing role re-seeds the rows with that role's defaults so the boxes
+    // always reflect a working agent for the chosen role.
+    roleSel.onchange = () => {
+      agentsWrap.innerHTML = "";
+      agentsWrap.appendChild(makeAgentRow(ROLE_DEFAULTS[roleSel.value] || {}));
+    };
 
-    // seed with one agent row (or provided ones)
+    // Seed rows: explicit agents, then count+defaults, else one role default.
     if (prefill.agents && prefill.agents.length) {
       prefill.agents.forEach(a => agentsWrap.appendChild(makeAgentRow(a)));
+    } else if (prefill.defaults) {
+      modeSel.value = "count";
+      head.querySelector(".sb-count-wrap").style.display = "inline";
+      head.querySelector(".sb-tier-count").value = prefill.count || 2;
+      agentsWrap.appendChild(makeAgentRow(prefill.defaults));
     } else {
-      agentsWrap.appendChild(makeAgentRow());
+      agentsWrap.appendChild(makeAgentRow(ROLE_DEFAULTS[role] || {}));
     }
     return block;
   }
 
+  function collectSchedule(wrap) {
+    const type = wrap.querySelector(".sb-sched-type").value;
+    if (!type) return undefined;
+    const spec = { type };
+    wrap.querySelectorAll(".sb-sched-param").forEach(inp => {
+      const v = inp.value.trim();
+      if (v !== "") spec[inp.dataset.p] = numOr(v);
+    });
+    return spec;
+  }
+
   function collectAgent(row) {
     const out = {};
-    row.querySelectorAll("input").forEach(inp => {
+    const nameI = row.querySelector('input[data-kind="name"]');
+    if (nameI && nameI.value.trim()) out.name = nameI.value.trim();
+    row.querySelectorAll('input[data-kind="number"]').forEach(inp => {
       const v = inp.value.trim();
-      if (!v) return;
-      if (inp.dataset.kind === "schedule") out[inp.dataset.k] = parseSchedule(v);
-      else if (inp.dataset.k === "name") out.name = v;
-      else out[inp.dataset.k] = numOr(v);
+      if (v !== "") out[inp.dataset.k] = numOr(v);
+    });
+    row.querySelectorAll(".sb-sched").forEach(wrap => {
+      const spec = collectSchedule(wrap);
+      if (spec) out[wrap.dataset.k] = spec;
     });
     return out;
   }
@@ -293,8 +365,28 @@
     };
   }
 
-  async function saveScenario() {
-    const name = $("sb-name").value.trim();
+  // Populate the whole builder form from a saved scenario config.
+  function loadIntoBuilder(name, config) {
+    $("sb-name").value = name;
+    $("sb-fw").value = config.forecast_window ?? 12;
+    $("sb-len").value = config.simulation_length ?? 120;
+    $("sb-obs").value = config.obs_window ?? 300;
+    $("sb-tiers").innerHTML = "";
+    (config.tiers || []).forEach(t => $("sb-tiers").appendChild(makeTierBlock(t)));
+    $("sb-msg").textContent = "Editing " + name;
+  }
+
+  async function loadExistingIntoBuilder() {
+    const name = $("sb-existing").value;
+    if (!name) return;
+    const res = await fetch("/api/scenario/" + encodeURIComponent(name));
+    const config = await res.json();
+    if (!res.ok) { $("sb-msg").textContent = "Error: " + config.error; return; }
+    loadIntoBuilder(name, config);
+  }
+
+  // Write the current form to the scenario named `name`, overwriting if present.
+  async function saveAs(name) {
     if (!name) { $("sb-msg").textContent = "Name required"; return; }
     const config = collectScenario();
     const res = await fetch("/api/scenario", {
@@ -305,6 +397,27 @@
     if (!res.ok) { $("sb-msg").textContent = "Error: " + data.error; return; }
     $("sb-msg").textContent = "Saved " + data.name;
     await refreshScenarioList(name);
+  }
+
+  function saveScenario() { saveAs($("sb-name").value.trim()); }
+
+  async function saveScenarioAsNew() {
+    const suggested = ($("sb-name").value.trim() || "scenario") + "_copy";
+    const name = (window.prompt("Save as new scenario named:", suggested) || "").trim();
+    if (!name) return;
+    $("sb-name").value = name;
+    await saveAs(name);
+  }
+
+  async function deleteScenario() {
+    const name = $("sb-name").value.trim();
+    if (!name) { $("sb-msg").textContent = "Name required"; return; }
+    if (!window.confirm(`Delete scenario "${name}"? This cannot be undone.`)) return;
+    const res = await fetch("/api/scenario/" + encodeURIComponent(name), { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) { $("sb-msg").textContent = "Error: " + data.error; return; }
+    $("sb-msg").textContent = "Deleted " + data.name;
+    await refreshScenarioList();
   }
 
   // --- builder modal -------------------------------------------------------
@@ -331,7 +444,10 @@
       if (e.propertyName === "flex-basis") MapView.refresh();
     });
     $("sb-add-tier").onclick = () => $("sb-tiers").appendChild(makeTierBlock());
+    $("sb-load-existing").onclick = loadExistingIntoBuilder;
     $("sb-save").onclick = saveScenario;
+    $("sb-save-new").onclick = saveScenarioAsNew;
+    $("sb-delete").onclick = deleteScenario;
 
     // Collapsible graph sections: clicking the header hides/shows its chart.
     document.querySelectorAll(".graphs h2").forEach(h => {
@@ -356,7 +472,10 @@
     StakeView.init();
     bind();
     await refreshScenarioList("default");
-    // Seed the builder with one example tier.
-    $("sb-tiers").appendChild(makeTierBlock({ name: "tier1", role: "producer" }));
+    // Seed the builder with a working producer -> intermediary -> retailer chain
+    // (role defaults trade out of the box) so a fresh scenario isn't inert.
+    $("sb-tiers").appendChild(makeTierBlock({ name: "tier2", role: "producer" }));
+    $("sb-tiers").appendChild(makeTierBlock({ name: "tier1", role: "intermediary" }));
+    $("sb-tiers").appendChild(makeTierBlock({ name: "OEM", role: "retailer" }));
   });
 })();

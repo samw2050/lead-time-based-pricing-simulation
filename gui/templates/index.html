@@ -70,6 +70,12 @@
         <button id="btn-close-builder" class="modal-close" aria-label="Close scenario builder">&times;</button>
       </div>
       <div class="builder-meta">
+        <label>Edit existing
+          <select id="sb-existing"></select>
+        </label>
+        <button id="sb-load-existing" type="button" class="small">Load into builder</button>
+      </div>
+      <div class="builder-meta">
         <label>Name <input type="text" id="sb-name" value="my_scenario"></label>
         <label>Forecast window <input type="number" id="sb-fw" value="12" min="1"></label>
         <label>Length (ticks) <input type="number" id="sb-len" value="120" min="1"></label>
@@ -77,8 +83,10 @@
       </div>
       <div id="sb-tiers"></div>
       <div class="builder-actions">
-        <button id="sb-add-tier">+ Add tier</button>
-        <button id="sb-save">Save scenario</button>
+        <button id="sb-add-tier" type="button">+ Add tier</button>
+        <button id="sb-save" type="button">Save</button>
+        <button id="sb-save-new" type="button">Save as new&hellip;</button>
+        <button id="sb-delete" type="button">Delete</button>
         <span id="sb-msg" class="status-msg"></span>
       </div>
     </div>

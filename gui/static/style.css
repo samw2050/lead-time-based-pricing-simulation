@@ -188,6 +188,15 @@ label { color: var(--muted); }
 .sb-mode { display: inline-flex; gap: 6px; align-items: center; }
 .sb-row-actions { display: flex; gap: 8px; margin-top: 6px; }
 
+/* schedule-valued fields: type dropdown + inline parameter boxes */
+.sb-sched {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
+  padding: 2px 6px; border: 1px dashed var(--border); border-radius: 6px;
+}
+.sb-sched-title { white-space: nowrap; }
+.sb-sched-params { display: inline-flex; gap: 4px; }
+.sb-sched-params input { width: 56px; }
+
 /* --- graphs --- */
 .graphs { background: var(--panel); }
 /* Header doubles as a collapse toggle, with a disclosure triangle. */

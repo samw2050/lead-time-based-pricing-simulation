@@ -62,6 +62,15 @@ def save_scenario():
     return jsonify({"ok": True, "name": os.path.basename(name)})
 
 
+@app.route("/api/scenario/<name>", methods=["DELETE"])
+def delete_scenario(name):
+    path = _scenario_path(name)
+    if not os.path.exists(path):
+        return jsonify({"error": "not found"}), 404
+    os.remove(path)
+    return jsonify({"ok": True, "name": os.path.basename(name)})
+
+
 # --- simulation control ----------------------------------------------------
 
 @app.route("/api/load", methods=["POST"])
