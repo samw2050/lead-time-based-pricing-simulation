@@ -80,20 +80,51 @@ def delete_scenario(name):
 
 # --- python scenario modules -----------------------------------------------
 
+def _module_dirs():
+    # Directories searched for Python scenario modules. PY_SCENARIO_DIR (the tracked
+    # built-ins) always comes first, followed by any extra dirs listed in the
+    # MODEL3_PY_SCENARIO_DIRS env var (os.pathsep-separated). This lets you surface
+    # scenarios that live OUTSIDE the repo's tracked tree -- e.g. a gitignored
+    # research/ folder -- in the GUI without copying them in. Only existing dirs are
+    # returned; PY_SCENARIO_DIR is created on demand by the callers that need it.
+    dirs = [PY_SCENARIO_DIR]
+    extra = os.environ.get("MODEL3_PY_SCENARIO_DIRS", "")
+    dirs += [os.path.abspath(p.strip()) for p in extra.split(os.pathsep) if p.strip()]
+    seen, out = set(), []
+    for d in dirs:
+        if d not in seen and os.path.isdir(d):
+            seen.add(d)
+            out.append(d)
+    return out
+
+
 def _module_path(name):
-    # Guard against path traversal: keep to a bare stem + .py inside PY_SCENARIO_DIR.
+    # Resolve a module stem to a file, searching the configured dirs in order.
+    # os.path.basename guards against path traversal (a name can't escape its dir);
+    # the first directory that has <name>.py wins, so built-ins shadow extras.
     safe = os.path.basename(name)
     if not safe.endswith(".py"):
         safe += ".py"
-    return os.path.join(PY_SCENARIO_DIR, safe)
+    for d in _module_dirs():
+        candidate = os.path.join(d, safe)
+        if os.path.exists(candidate):
+            return candidate
+    return os.path.join(PY_SCENARIO_DIR, safe)  # fall back for the not-found error
 
 
 @app.route("/api/modules")
 def list_modules():
     os.makedirs(PY_SCENARIO_DIR, exist_ok=True)
-    names = sorted(f[:-3] for f in os.listdir(PY_SCENARIO_DIR)
-                   if f.endswith(".py") and not f.startswith("_"))
-    return jsonify(names)
+    # Aggregate scenario stems across every configured dir, de-duplicated (a stem
+    # found in an earlier dir shadows a same-named one later, matching _module_path).
+    seen, names = set(), []
+    for d in _module_dirs():
+        for f in os.listdir(d):
+            stem = f[:-3]
+            if f.endswith(".py") and not f.startswith("_") and stem not in seen:
+                seen.add(stem)
+                names.append(stem)
+    return jsonify(sorted(names))
 
 
 @app.route("/api/load_module", methods=["POST"])
