@@ -4,9 +4,9 @@
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const R_MIN = 8, R_MAX = 34;
-// Fixed radius for the synthetic raw-materials / end-customer framing nodes
-// (they have no metric to scale by).
-const R_FIXED = 14;
+// The synthetic raw-materials / end-customer framing nodes have no metric to scale
+// by, so they're drawn at R_MIN -- the smallest an agent node can ever be -- so they
+// read as fixed boundary markers and never out-size a real agent.
 
 const MapView = (() => {
   let svg, width = 1000, height = 360;
@@ -193,7 +193,7 @@ const MapView = (() => {
     // coloured as the first/last columns of the spectrum.
     [[rawX, "raw materials", 0], [endX, "end customer", nCols - 1]].forEach(([x, label, idx]) => {
       el("text", { x, y: 22, class: "tier-label" }, nodeLayer).textContent = label;
-      el("circle", { cx: x, cy: midY, r: R_FIXED, class: "node", style: `fill:${spectrumColor(idx, nCols)}` }, nodeLayer);
+      el("circle", { cx: x, cy: midY, r: R_MIN, class: "node", style: `fill:${spectrumColor(idx, nCols)}` }, nodeLayer);
     });
 
     MapView._fxLayer = fxLayer;
