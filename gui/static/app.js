@@ -234,6 +234,9 @@
       const inp = document.createElement("input");
       inp.type = "number"; inp.step = "any";
       inp.dataset.k = key; inp.dataset.kind = "number";
+      // shelf_life is optional: a blank box means the agent's stock never spoils.
+      // Hint that in the placeholder so the empty default reads as intentional.
+      if (key === "shelf_life") { inp.placeholder = "∞ never spoils"; inp.min = 0; }
       if (hasVal(prefill[key])) inp.value = prefill[key];
       l.appendChild(inp); wrap.appendChild(l);
     });
