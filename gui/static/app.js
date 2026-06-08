@@ -133,11 +133,17 @@
     { key: "revenue_forecast", type: "schedule" },
   ];
 
+  // "production_cost" -> "Production cost" for display labels.
+  const prettyLabel = (k) => {
+    const s = k.replace(/_/g, " ");
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+
   function makeAgentRow(prefill = {}) {
     const wrap = document.createElement("div");
     wrap.className = "sb-agent";
     const nameL = document.createElement("label");
-    nameL.innerHTML = "name ";
+    nameL.innerHTML = "Name ";
     const nameI = document.createElement("input");
     nameI.type = "text"; nameI.placeholder = "(auto)";
     nameI.value = prefill.name || "";
@@ -146,7 +152,7 @@
 
     AGENT_FIELDS.forEach(f => {
       const l = document.createElement("label");
-      l.textContent = f.key + " ";
+      l.textContent = prettyLabel(f.key) + " ";
       const inp = document.createElement("input");
       inp.type = "text";
       inp.dataset.k = f.key; inp.dataset.kind = f.type;
@@ -209,16 +215,16 @@
     const head = document.createElement("div");
     head.className = "sb-tier-head";
     head.innerHTML = `
-      <label>tier name <input type="text" class="sb-tier-name" value="${prefill.name || ""}"></label>
-      <label>role <select class="sb-tier-role">${ROLES.map(r => `<option ${r === prefill.role ? "selected" : ""}>${r}</option>`).join("")}</select></label>
-      <label class="sb-mode">mode
+      <label>Tier name <input type="text" class="sb-tier-name" value="${prefill.name || ""}"></label>
+      <label>Role <select class="sb-tier-role">${ROLES.map(r => `<option value="${r}" ${r === prefill.role ? "selected" : ""}>${prettyLabel(r)}</option>`).join("")}</select></label>
+      <label class="sb-mode">Mode
         <select class="sb-tier-mode">
-          <option value="list">explicit agents</option>
-          <option value="count">count + defaults</option>
+          <option value="list">Explicit agents</option>
+          <option value="count">Count + defaults</option>
         </select>
       </label>
       <span class="sb-count-wrap" style="display:none">
-        <label>count <input type="number" class="sb-tier-count" value="2" min="1" style="width:60px"></label>
+        <label>Count <input type="number" class="sb-tier-count" value="2" min="1" style="width:60px"></label>
       </span>
     `;
     block.appendChild(head);
@@ -230,10 +236,10 @@
     const rowActions = document.createElement("div");
     rowActions.className = "sb-row-actions";
     const addAgent = document.createElement("button");
-    addAgent.className = "small"; addAgent.textContent = "+ agent / default";
+    addAgent.className = "small"; addAgent.textContent = "+ Agent / default";
     addAgent.onclick = () => agentsWrap.appendChild(makeAgentRow());
     const delTier = document.createElement("button");
-    delTier.className = "small"; delTier.textContent = "× tier";
+    delTier.className = "small"; delTier.textContent = "× Tier";
     delTier.onclick = () => block.remove();
     rowActions.append(addAgent, delTier);
     block.appendChild(rowActions);

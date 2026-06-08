@@ -17,18 +17,18 @@
   <section class="top" id="top-panel">
     <div class="map-panel">
       <div class="map-toolbar">
-        <label>Dot size:
+        <label>Node size:
           <select id="metric-select">
-            <option value="inventory">inventory</option>
-            <option value="contracts">contracts</option>
-            <option value="balance">balance</option>
-            <option value="wip">work in progress</option>
+            <option value="inventory">Inventory</option>
+            <option value="contracts">Contracts</option>
+            <option value="balance">Balance</option>
+            <option value="wip">Work in progress</option>
           </select>
         </label>
         <span class="legend">
-          <span class="legend-dot flow"></span> delivery
-          <span class="legend-dot fail"></span> failed delivery
-          <span class="legend-dot bump"></span> bumped (planned re-route)
+          <span class="legend-dot flow"></span> Delivery
+          <span class="legend-dot fail"></span> Failed delivery
+          <span class="legend-dot bump"></span> Bumped (planned re-route)
         </span>
       </div>
       <svg id="map" preserveAspectRatio="xMidYMid meet"></svg>
@@ -73,7 +73,7 @@
         <label>Name <input type="text" id="sb-name" value="my_scenario"></label>
         <label>Forecast window <input type="number" id="sb-fw" value="12" min="1"></label>
         <label>Length (ticks) <input type="number" id="sb-len" value="120" min="1"></label>
-        <label>Obs window <input type="number" id="sb-obs" value="300" min="1"></label>
+        <label>Observation window <input type="number" id="sb-obs" value="300" min="1"></label>
       </div>
       <div id="sb-tiers"></div>
       <div class="builder-actions">
