@@ -122,6 +122,25 @@ class Simulation:
         for a in self.all_agents:
             a.complete_production(t)
 
+        # --- spoilage ---
+        # Write off stock that has exceeded its shelf life before it can be offered
+        # this tick. Runs after completions (today's completions enter at t and so
+        # cannot spoil the same tick unless shelf_life is 0) and before production
+        # decisions / trading, so the auction never offers a unit that's about to be
+        # discarded. Sunk-cost only -- the spoiled units just vanish.
+        for a in self.all_agents:
+            spoiled_inv, spoiled_input = a.expire(t)
+            if spoiled_inv or spoiled_input:
+                parts = []
+                if spoiled_inv:
+                    parts.append(f"{spoiled_inv:g} finished")
+                if spoiled_input:
+                    parts.append(f"{spoiled_input:g} raw")
+                print(f"  [t={t}] {a.name} spoils {' + '.join(parts)} units")
+                self.events.append({"type": "spoiled", "agent": a.name,
+                                    "inventory": float(spoiled_inv),
+                                    "input_inventory": float(spoiled_input)})
+
         # --- production decisions ---
         # Each producer/intermediary decides today's starts using its build-to-stock
         # policy. Today's starts immediately enter production_schedule (or, if
@@ -535,7 +554,7 @@ class Simulation:
                 c.supplier.record_observation(None, lf, c.price, c.supplier_penalty, bump=True)
 
             # Drain finished inventory by what was actually delivered.
-            supplier.inventory -= sum(c.quantity for c in delivered)
+            supplier.consume_inventory(sum(c.quantity for c in delivered))
 
         # Customers receive deliveries before the next supplier layer runs. For
         # intermediaries that assemble (input_inventory tracked separately), inbound
@@ -544,9 +563,9 @@ class Simulation:
         # to finished inventory.
         for cust, qty in delivered_qty_by_customer.items():
             if cust.input_inventory is not None:
-                cust.input_inventory += qty
+                cust.add_input(qty, t)
             else:
-                cust.inventory += qty
+                cust.add_inventory(qty, t)
 
     # ----- end-customer service for retailers -----
 
@@ -557,7 +576,7 @@ class Simulation:
         demand = retailer.demand_forecast.get(t, 0)
         delivered_to_customer = min(retailer.inventory, demand)
         shortfall = demand - delivered_to_customer
-        retailer.inventory -= delivered_to_customer
+        retailer.consume_inventory(delivered_to_customer)
         retailer.balance += retailer.revenue_fn(t) * delivered_to_customer
         if delivered_to_customer > 0:
             print(f"  [t={t}] {retailer.name} delivers {delivered_to_customer:.0f} units to customers")

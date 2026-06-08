@@ -125,7 +125,7 @@
   // Scalar agent fields shown as plain number boxes.
   const SCALAR_FIELDS = [
     "cost", "production_cost", "production_time", "inventory",
-    "input_inventory", "safety_stock", "penalty_scale",
+    "input_inventory", "safety_stock", "shelf_life", "penalty_scale",
   ];
   // Schedule-valued agent fields, shown as a type dropdown + parameter boxes.
   const SCHEDULE_FIELDS = ["supply", "demand", "revenue", "revenue_forecast"];

@@ -32,6 +32,7 @@ class agent:
                  revenue_fn=None, revenue_forecast_fn=None,
                  safety_stock=0, inventory=0,
                  production_time=0, input_inventory=None,
+                 shelf_life=None,
                  build_to_stock_horizon=5,
                  ewma_alpha=0.3,
                  penalty_scale=1.0,
@@ -92,6 +93,26 @@ class agent:
         #   - pure retailers / pass-through oems with production_time=0
         self.inventory = inventory
         self.input_inventory = input_inventory
+        # Perishability. `shelf_life` is the maximum number of ticks a unit may sit
+        # in a stock pool before it spoils and is written off (it expires once its
+        # age reaches shelf_life, i.e. t - entry_time >= shelf_life). None means
+        # non-perishable -- the age ledgers below are then never touched and the
+        # scalar pools above are the whole story. When set, it applies to BOTH the
+        # finished `inventory` and the raw `input_inventory` pools. Each ledger is a
+        # FIFO deque of [entry_time, qty] batches; the scalar pool stays the
+        # authoritative total (so every read-side projection is unchanged) and the
+        # ledger only records how that total is distributed across ages. Initial
+        # stock is seeded as a single batch entering at t=0. Spoilage is sunk-cost
+        # only: production_cost was already charged at start_production, so a write-
+        # off needs no further balance change -- the unit just disappears.
+        self.shelf_life = shelf_life
+        self._inv_batches = deque()
+        self._input_batches = deque()
+        if shelf_life is not None:
+            if inventory > 0:
+                self._inv_batches.append([0, inventory])
+            if input_inventory is not None and input_inventory > 0:
+                self._input_batches.append([0, input_inventory])
         self.safety_stock = safety_stock
         # Production state. `production_time` is tau (delay from start to completion).
         # `production_schedule` tracks in-progress production keyed by completion time.
@@ -327,6 +348,80 @@ class agent:
             return self.bump_models[supplier]
         return DEFAULT_MODEL_SELF if supplier is None else DEFAULT_MODEL_OTHER
 
+    # ----- stock pools (perishability-aware mutation) -----
+    # Every write to inventory / input_inventory routes through these so the scalar
+    # total and the FIFO age ledger stay in lock-step. When shelf_life is None the
+    # ledger is skipped and these collapse to plain scalar arithmetic, so a
+    # non-perishable agent behaves exactly as before. Consumption is FIFO (oldest
+    # batch first) so units are sold/used before they spoil -- the realistic policy
+    # and the one that minimises waste.
+
+    @staticmethod
+    def _fifo_remove(batches, qty):
+        # Drain `qty` from the front (oldest) of a batch deque. Tolerates float
+        # quantities (retailer demand can be fractional). Leaves the deque empty
+        # rather than going negative if qty exceeds the recorded total.
+        remaining = qty
+        while remaining > 0 and batches:
+            entry_time, batch_qty = batches[0]
+            if batch_qty > remaining:
+                batches[0][1] = batch_qty - remaining
+                remaining = 0
+            else:
+                remaining -= batch_qty
+                batches.popleft()
+
+    def add_inventory(self, qty, t):
+        if qty <= 0:
+            return
+        self.inventory += qty
+        if self.shelf_life is not None:
+            self._inv_batches.append([t, qty])
+
+    def consume_inventory(self, qty):
+        if qty <= 0:
+            return
+        self.inventory -= qty
+        if self.shelf_life is not None:
+            self._fifo_remove(self._inv_batches, qty)
+
+    def add_input(self, qty, t):
+        if qty <= 0:
+            return
+        self.input_inventory += qty
+        if self.shelf_life is not None:
+            self._input_batches.append([t, qty])
+
+    def consume_input(self, qty):
+        if qty <= 0:
+            return
+        self.input_inventory -= qty
+        if self.shelf_life is not None:
+            self._fifo_remove(self._input_batches, qty)
+
+    def _expire_pool(self, batches, t):
+        # Remove and total up every batch old enough to spoil (age >= shelf_life).
+        # Batches are append-ordered by entry_time, so all expired ones sit at the
+        # front -- stop at the first survivor.
+        spoiled = 0
+        while batches and t - batches[0][0] >= self.shelf_life:
+            spoiled += batches.popleft()[1]
+        return spoiled
+
+    def expire(self, t):
+        # Write off spoiled stock in both pools. Returns (spoiled_inventory,
+        # spoiled_input) so the caller can log it. No-op (returns zeros) when this
+        # agent is non-perishable. Sunk-cost only: no balance adjustment here.
+        if self.shelf_life is None:
+            return 0, 0
+        spoiled_inv = self._expire_pool(self._inv_batches, t)
+        self.inventory -= spoiled_inv
+        spoiled_input = 0
+        if self.input_inventory is not None:
+            spoiled_input = self._expire_pool(self._input_batches, t)
+            self.input_inventory -= spoiled_input
+        return spoiled_inv, spoiled_input
+
     # ----- production lifecycle -----
 
     def complete_production(self, t):
@@ -334,7 +429,7 @@ class agent:
         # into finished inventory. Called once per tick, before production decisions
         # and trading so the trading auction sees today's completions in stock.
         completed = self.production_schedule.pop(t, 0)
-        self.inventory += completed
+        self.add_inventory(completed, t)
         return completed
 
     def start_production(self, qty, t):
@@ -362,13 +457,13 @@ class agent:
             qty = min(qty, remaining_capacity)
         if self.input_inventory is not None:
             qty = min(qty, self.input_inventory)
-            self.input_inventory -= qty
+            self.consume_input(qty)
         if qty <= 0:
             return 0
         self.starts_today += qty
         self.balance -= qty * self.production_cost
         if self.production_time == 0:
-            self.inventory += qty
+            self.add_inventory(qty, t)
         else:
             completion_time = t + self.production_time
             self.production_schedule[completion_time] = (
