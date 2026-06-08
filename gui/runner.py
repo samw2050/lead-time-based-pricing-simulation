@@ -49,6 +49,21 @@ class SimulationRunner:
             self._drain_queue()
             return serialize.snapshot(self.sim, log_text="")
 
+    def load_sim(self, sim):
+        """Load an already-constructed Simulation and reset play state.
+
+        Used for custom Python scenario modules that build the Simulation in code
+        (via their build()), bypassing the JSON scenario builder. Everything
+        downstream -- ticking, snapshotting, streaming -- is config-agnostic, so a
+        hand-built Simulation drives the GUI identically to a JSON-built one.
+        config is set to None since there's no scenario dict behind this run."""
+        with self._lock:
+            self.stop()
+            self.config = None
+            self.sim = sim
+            self._drain_queue()
+            return serialize.snapshot(self.sim, log_text="")
+
     @property
     def loaded(self):
         return self.sim is not None

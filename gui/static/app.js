@@ -56,13 +56,24 @@
   // --- controls ------------------------------------------------------------
 
   async function doLoad() {
-    const name = $("scenario-select").value;
+    const sel = $("scenario-select");
+    const name = sel.value;
     if (!name) return;
+    // The selected <option> carries data-kind ("json" or "module"), set when the
+    // picker is populated, so a JSON scenario and a Python module that happen to
+    // share a name still dispatch to the right endpoint.
+    const opt = sel.options[sel.selectedIndex];
+    const isModule = opt && opt.dataset.kind === "module";
     setStatus("Loading " + name + "…");
-    const res = await fetch("/api/load", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
+    const res = isModule
+      ? await fetch("/api/load_module", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ module: name }),
+        })
+      : await fetch("/api/load", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
     const snap = await res.json();
     if (!res.ok) { setStatus("Error: " + snap.error); return; }
     loaded = true;
@@ -103,20 +114,49 @@
   }
 
   async function refreshScenarioList(selectName) {
-    const res = await fetch("/api/scenarios");
-    const names = await res.json();
-    // Populate both the run selector and the builder's "edit existing" picker.
-    [["scenario-select", selectName], ["sb-existing", selectName]].forEach(([id, want]) => {
-      const sel = $(id);
-      if (!sel) return;
-      sel.innerHTML = "";
+    const [jsonRes, modRes] = await Promise.all([
+      fetch("/api/scenarios"),
+      fetch("/api/modules"),
+    ]);
+    const names = await jsonRes.json();
+    const modules = modRes.ok ? await modRes.json() : [];
+
+    // Builder's "edit existing" picker: JSON scenarios only -- a Python module
+    // isn't editable through the form builder.
+    const sbSel = $("sb-existing");
+    if (sbSel) {
+      sbSel.innerHTML = "";
       names.forEach(n => {
         const opt = document.createElement("option");
         opt.value = n; opt.textContent = n;
-        sel.appendChild(opt);
+        sbSel.appendChild(opt);
       });
-      if (want && names.includes(want)) sel.value = want;
-    });
+      if (selectName && names.includes(selectName)) sbSel.value = selectName;
+    }
+
+    // Run selector: JSON scenarios + Python modules, in labelled groups. Each
+    // option tags its kind so doLoad() can route to the right endpoint.
+    const runSel = $("scenario-select");
+    if (runSel) {
+      runSel.innerHTML = "";
+      const addGroup = (label, items, kind) => {
+        if (!items.length) return;
+        const g = document.createElement("optgroup");
+        g.label = label;
+        items.forEach(n => {
+          const opt = document.createElement("option");
+          opt.value = n; opt.textContent = n; opt.dataset.kind = kind;
+          g.appendChild(opt);
+        });
+        runSel.appendChild(g);
+      };
+      addGroup("Scenarios (JSON)", names, "json");
+      addGroup("Python modules", modules, "module");
+      if (selectName) {
+        const match = Array.from(runSel.options).find(o => o.value === selectName);
+        if (match) runSel.value = selectName;
+      }
+    }
   }
 
   // --- scenario builder ----------------------------------------------------

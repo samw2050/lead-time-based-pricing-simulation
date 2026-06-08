@@ -3,6 +3,7 @@
 Run with ``python gui/app.py`` then open http://localhost:5000.
 """
 
+import importlib.util
 import json
 import os
 
@@ -12,6 +13,12 @@ from runner import runner
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 SCENARIO_DIR = os.path.join(APP_DIR, "scenarios")
+# Python scenario modules: each is a .py file exposing a build() that returns an
+# un-run Simulation. Unlike JSON scenarios these can use anything the model code
+# exposes (arbitrary schedule functions, custom wiring) rather than only the
+# fields the JSON builder understands. The model/ dir is already on sys.path
+# (runner adds it at import), so a module's `from agent import agent` resolves.
+PY_SCENARIO_DIR = os.path.join(APP_DIR, "py_scenarios")
 
 app = Flask(__name__)
 
@@ -69,6 +76,48 @@ def delete_scenario(name):
         return jsonify({"error": "not found"}), 404
     os.remove(path)
     return jsonify({"ok": True, "name": os.path.basename(name)})
+
+
+# --- python scenario modules -----------------------------------------------
+
+def _module_path(name):
+    # Guard against path traversal: keep to a bare stem + .py inside PY_SCENARIO_DIR.
+    safe = os.path.basename(name)
+    if not safe.endswith(".py"):
+        safe += ".py"
+    return os.path.join(PY_SCENARIO_DIR, safe)
+
+
+@app.route("/api/modules")
+def list_modules():
+    os.makedirs(PY_SCENARIO_DIR, exist_ok=True)
+    names = sorted(f[:-3] for f in os.listdir(PY_SCENARIO_DIR)
+                   if f.endswith(".py") and not f.startswith("_"))
+    return jsonify(names)
+
+
+@app.route("/api/load_module", methods=["POST"])
+def load_module():
+    body = request.get_json(force=True)
+    name = body.get("module")
+    if not name:
+        return jsonify({"error": "module name required"}), 400
+    path = _module_path(name)
+    if not os.path.exists(path):
+        return jsonify({"error": "module not found"}), 404
+    try:
+        spec = importlib.util.spec_from_file_location(
+            f"py_scenario_{os.path.basename(path)[:-3]}", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        if not hasattr(mod, "build"):
+            raise AttributeError(
+                "module must define build() returning an un-run Simulation")
+        sim = mod.build()
+        snap = runner.load_sim(sim)
+    except Exception as exc:  # surface import / build errors to the UI
+        return jsonify({"error": f"{type(exc).__name__}: {exc}"}), 400
+    return jsonify(snap)
 
 
 # --- simulation control ----------------------------------------------------
