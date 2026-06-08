@@ -13,7 +13,7 @@ from bump_model import bumped_prob
 
 
 def _solve_impl(mode, cost, buyer_belief, seller_belief, lead_frac, rev,
-                resale_cost, seller_floor, tol):
+                resale_cost, seller_floor, min_penalty, max_penalty, tol):
     # Two-stage contract solver. The bid and negotiation stages are duals:
     #
     #   mode='bid'         -- seller maximises EV_s subject to buyer's EV_b >= 0
@@ -26,6 +26,11 @@ def _solve_impl(mode, cost, buyer_belief, seller_belief, lead_frac, rev,
     #
     # `seller_floor` is unused (0.0) for the bid mode; for negotiation it's the
     # next-best EV_s the seller could have taken instead.
+    #
+    # The penalty is constrained to the seller's [min_penalty, max_penalty] window
+    # (max_penalty=None => unbounded above). Both parties negotiate price and
+    # penalty within it; if no feasible point exists inside the window, the solver
+    # returns None and no contract forms.
     def ev_b(price, penalty):
         p = bumped_prob(buyer_belief, lead_frac, price, penalty)
         return (1 - p) * (rev - price) + p * penalty
@@ -33,18 +38,19 @@ def _solve_impl(mode, cost, buyer_belief, seller_belief, lead_frac, rev,
         p = bumped_prob(seller_belief, lead_frac, price, penalty)
         return (1 - p) * (price - cost) - p * penalty - resale_cost
 
+    # Seed the penalty guess inside the window so x0 is feasible when min_penalty > 0.
     if mode == 'bid':
         objective = lambda x: -ev_s(*x)
         constraint = lambda x: ev_b(*x)
-        x0 = [rev / 2, 0.0]
+        x0 = [rev / 2, min_penalty]
     else:  # 'negotiation'
         objective = lambda x: -ev_b(*x)
         constraint = lambda x: ev_s(*x) - seller_floor
-        x0 = [rev, 0.0]
+        x0 = [rev, min_penalty]
 
     result = minimize(
         objective, x0=x0, method='SLSQP',
-        bounds=[(0.0, rev), (0.0, None)],
+        bounds=[(0.0, rev), (min_penalty, max_penalty)],
         constraints={'type': 'ineq', 'fun': constraint},
         options={'ftol': tol},
     )

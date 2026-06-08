@@ -303,7 +303,8 @@ class Simulation:
                     rev = buyer.revenue_forecast.get(delivery_time, 0)
 
                     args = ('bid', seller_cost, buyer_belief, seller_belief,
-                            lead_frac, rev, resale_cost, 0.0, minimisation_tolerance)
+                            lead_frac, rev, resale_cost, 0.0,
+                            seller.min_penalty, seller.max_penalty, minimisation_tolerance)
                     bid = solve_checked(args, buyer, seller, t, lead_time, verify_cache=verify_cache)
 
                     if bid is not None:
@@ -350,7 +351,8 @@ class Simulation:
                 rev = buyer.revenue_forecast.get(delivery_time, 0)
 
                 args = ('negotiation', seller_cost, buyer_belief, seller_belief,
-                        lead_frac, rev, resale_cost, second_ev_s, minimisation_tolerance)
+                        lead_frac, rev, resale_cost, second_ev_s,
+                        seller.min_penalty, seller.max_penalty, minimisation_tolerance)
                 neg = solve_checked(args, buyer, seller, t, lead_time, verify_cache=verify_cache)
 
                 if neg is not None:

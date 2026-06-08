@@ -16,14 +16,25 @@ from bump_model import DEFAULT_MODEL_SELF, DEFAULT_MODEL_OTHER
 
 
 # Box constraints on the fitted logistic (w0, w_lead, w_stake) = (a, b, c).
-# Only the stake coefficient is pinned for now: w_stake <= 0 enforces the
-# economically sane "- c * (price + penalty)" sign (c >= 0), so higher stake can
-# never raise the believed bump probability. The intercept (a) and lead slope (b)
-# are deliberately left free -- with the moving observation window letting stale
-# beliefs decay, we want to watch how they settle before deciding whether to cap.
-BUMP_BOUNDS = [(None, None),   # w0 = a       : free
-               (None, None),   # w_lead = b   : free
-               (None, 0.0)]    # w_stake = -c : <= 0  (c >= 0)
+# Only the stake coefficient is pinned: w_stake <= -MIN_STAKE_SENSITIVITY enforces
+# the economically sane "- c * (price + penalty)" sign AND keeps c strictly away
+# from 0. A floor matters because penalty is pure upside to a buyer (it collects the
+# penalty on a bump), so its unconstrained optimum is
+#   penalty* = (rev - price) + 1 / (c * (1 - p)),
+# which diverges as c -> 0. Left at c >= 0 the L2-regularised fit drives w_stake to
+# exactly 0 once stakes grow large (a vanishing coefficient still yields a large
+# z = w_stake * stake when stake is huge, and L2 punishes |w_stake|), removing the
+# only brake on penalty and letting it run away. Flooring c at the cold-start
+# sensitivity (DEFAULT_MODEL_OTHER's C=0.001, calibrated to this model's stake
+# magnitudes) caps penalty* at ~(rev-price)+a few thousand -- the same order as a
+# normal contract -- so a fitted belief can never become less stake-sensitive than
+# the baseline the model ships with. The intercept (a) and lead slope (b) are left
+# free -- with the moving observation window letting stale beliefs decay, we want to
+# watch how they settle before deciding whether to cap them too.
+MIN_STAKE_SENSITIVITY = 0.001
+BUMP_BOUNDS = [(None, None),                    # w0 = a       : free
+               (None, None),                    # w_lead = b   : free
+               (None, -MIN_STAKE_SENSITIVITY)]  # w_stake = -c : <= -0.001 (c >= 0.001)
 
 
 class agent:
@@ -36,6 +47,7 @@ class agent:
                  build_to_stock_horizon=5,
                  ewma_alpha=0.3,
                  penalty_scale=1.0,
+                 min_penalty=0.0, max_penalty=None,
                  min_obs_for_fit=5, l2_reg=0.1, obs_window=300):
         self.name = name
         self.risk_aversion = risk_aversion
@@ -50,6 +62,18 @@ class agent:
         # this has no effect on retailers. See resale_cost / resale_floor in
         # Simulation._run_auction for where it is applied.
         self.penalty_scale = penalty_scale
+        # The penalty window this agent, ACTING AS A SELLER, will accept on a new
+        # contract. The (price, penalty) optimisation in the bid and negotiation
+        # stages is constrained to penalty in [min_penalty, max_penalty], so the
+        # counterparty must negotiate within it. min_penalty raises the floor (the
+        # seller demands at least this much compensation for a renege); max_penalty
+        # caps the seller's exposure (None = unbounded above, the original
+        # behaviour). If no (price, penalty) inside the window satisfies both
+        # parties' EV constraints, no contract forms. Only sellers
+        # (producers/intermediaries) consult these, so they have no effect on
+        # retailers. Applied in solver._solve_impl via the penalty bounds.
+        self.min_penalty = min_penalty
+        self.max_penalty = max_penalty
         # demand_fn=None -> intermediary: demand is derived from contracts sold downstream.
         # supply_fn=None -> non-producer: supply comes from inbound contracts + starting inventory.
         self.demand_fn = demand_fn
