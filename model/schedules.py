@@ -22,3 +22,20 @@ def sinusoidal(base, magnitude=1.0, frequency=1.0, phase=0.0):
 def random_uniform(low, high):
     # Redrawn independently each call; t is ignored.
     return lambda _: random.uniform(low, high)
+
+def sequence(values, hold_last=True):
+    # List-indexed schedule: f(t) returns values[t], so you can hand-write an
+    # explicit per-tick path like [5, 5, 5, 5, 50, 50, 50] rather than fitting a
+    # formula. Past the end of the list, f holds the last value (hold_last=True,
+    # the default) or returns 0 -- needed because forecasts query t beyond
+    # simulation_length. t < 0 clamps to the first value.
+    values = list(values)
+    def f(t):
+        if not values:
+            return 0
+        if t < 0:
+            return values[0]
+        if t < len(values):
+            return values[t]
+        return values[-1] if hold_last else 0
+    return f

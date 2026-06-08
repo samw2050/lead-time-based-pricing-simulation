@@ -34,7 +34,7 @@ mapped to the factories in ``schedules.py``.
 """
 
 from agent import agent
-from schedules import fixed, linear, sinusoidal, random_uniform
+from schedules import fixed, linear, sinusoidal, random_uniform, sequence
 from simulation import Simulation
 from tier import Tier
 
@@ -46,6 +46,10 @@ _SCHEDULE_FACTORIES = {
     "linear": linear,
     "sinusoidal": sinusoidal,
     "random_uniform": random_uniform,
+    # sequence takes a list: {"type": "sequence", "values": [5, 5, 50, 50]}.
+    # Not offered in the form builder (a list doesn't fit the numeric-param UI),
+    # but usable from hand-edited JSON and from Python scenario modules.
+    "sequence": sequence,
 }
 
 

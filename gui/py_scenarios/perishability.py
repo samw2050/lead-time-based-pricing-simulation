@@ -13,6 +13,14 @@ spoilage. Watch each agent's inventory survive exactly its shelf_life, then get
 written off in one go.
 """
 
+import os
+import sys
+
+# Make model/ importable for standalone runs; a no-op when the GUI loads this
+# (the runner already puts model/ on sys.path).
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "model")))
+
 from agent import agent
 from simulation import Simulation
 from tier import Tier
