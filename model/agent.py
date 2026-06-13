@@ -31,7 +31,7 @@ from bump_model import DEFAULT_MODEL_SELF, DEFAULT_MODEL_OTHER
 # the baseline the model ships with. The intercept (a) and lead slope (b) are left
 # free -- with the moving observation window letting stale beliefs decay, we want to
 # watch how they settle before deciding whether to cap them too.
-MIN_STAKE_SENSITIVITY = 0.001
+MIN_STAKE_SENSITIVITY = 0.1
 BUMP_BOUNDS = [(None, None),                    # w0 = a       : free
                (None, None),                    # w_lead = b   : free
                (None, -MIN_STAKE_SENSITIVITY)]  # w_stake = -c : <= -0.001 (c >= 0.001)

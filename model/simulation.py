@@ -1,5 +1,7 @@
 """The Simulation: runs an N-tier supply-chain auction over discrete ticks."""
 
+import numpy as np
+
 from bump_model import bumped_prob
 from contracts import contract, ContractBook
 from solver import solve, solve_checked
@@ -16,7 +18,8 @@ class Simulation:
         sim.run()
     """
     def __init__(self, tiers, *, forecast_window=12, simulation_length=24,
-                 unit_size=1, minimisation_tolerance=1e-4, verify_cache=False):
+                 unit_size=1, minimisation_tolerance=1e-4, verify_cache=False,
+                 seed=None):
         if not tiers:
             raise ValueError("Simulation needs at least one tier")
         retailer_indices = [i for i, t in enumerate(tiers) if t.role == "retailer"]
@@ -31,6 +34,12 @@ class Simulation:
         self.unit_size = unit_size
         self.minimisation_tolerance = minimisation_tolerance
         self.verify_cache = verify_cache
+        # Per-auction processing order is shuffled with this RNG so identically
+        # configured agents don't inherit a structural advantage from their list
+        # position (the exact-tie tie-break otherwise always favours the first-
+        # listed agent). seed=None => nondeterministic; pass a seed to reproduce.
+        self.seed = seed
+        self._rng = np.random.default_rng(seed)
         self.t = 0
         self.contracts = ContractBook()
         # Structured event log for the current tick, consumed by the GUI to drive
@@ -234,6 +243,15 @@ class Simulation:
         verify_cache = self.verify_cache
         lead_frac = lead_time / forecast_window
 
+        # Shuffle the processing order so list position confers no advantage. These
+        # are the tiers' canonical agent lists, so copy before shuffling -- never in
+        # place. The exact-tie tie-break (bids/awards) and the sequential commit loop
+        # would otherwise systematically favour the first-listed agent.
+        buyers = list(buyers)
+        self._rng.shuffle(buyers)
+        sellers = list(sellers)
+        self._rng.shuffle(sellers)
+
         # Aggregated across all rounds of the while loop for a single summary print
         # at the end -- one line per (supplier, customer) pair summarises everything
         # done at this (delivery, lead).
@@ -321,7 +339,15 @@ class Simulation:
                 if incumbent is not None and all(b is incumbent.customer for b, _ in ranked):
                     continue
                 winner_buyer, winning_bid = ranked[0]
-                second_ev_s = ranked[1][1]['ev_s'] if len(ranked) > 1 else 0
+                # Seller reservation floor for the negotiation stage. Floored at 0 so
+                # competition between buyers can never drag the seller below its own
+                # break-even: with multiple bidders the runner-up's ev_s may itself be
+                # negative in a loss-making market, and without this max() the
+                # negotiated constraint ev_s >= second_ev_s would clear a below-cost
+                # contract. New production (cost = replacement_cost) is therefore
+                # refused unless price >= cost; sunk-cost excess/perishable offers
+                # (cost 0) still clear, since their ev_s >= 0 regardless.
+                second_ev_s = max(0.0, ranked[1][1]['ev_s'] if len(ranked) > 1 else 0.0)
                 if incumbent is not None:
                     # Resale floor uses the same per-offer cost basis the bid optimizer
                     # is using this round (0 for resale, since the unit physically exists).
@@ -461,6 +487,7 @@ class Simulation:
             bumped = bumped_from.get((seller, buyer))
             self.events.append({"type": "contract", "seller": seller.name,
                                 "buyer": buyer.name, "qty": total_qty,
+                                "penalty": avg_penalty,
                                 "delivery_time": delivery_time})
             if bumped:
                 print(f"  [t={t} lead={lead_time}] {seller.name} will bump {bumped} to supply {buyer.name} {total_qty} units "

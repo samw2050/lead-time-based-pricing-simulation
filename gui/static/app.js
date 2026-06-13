@@ -166,6 +166,7 @@
   const SCALAR_FIELDS = [
     "cost", "production_cost", "production_time", "inventory",
     "input_inventory", "safety_stock", "shelf_life", "penalty_scale",
+    "min_penalty", "max_penalty",
   ];
   // Schedule-valued agent fields, shown as a type dropdown + parameter boxes.
   const SCHEDULE_FIELDS = ["supply", "demand", "revenue", "revenue_forecast"];
@@ -277,6 +278,11 @@
       // shelf_life is optional: a blank box means the agent's stock never spoils.
       // Hint that in the placeholder so the empty default reads as intentional.
       if (key === "shelf_life") { inp.placeholder = "∞ never spoils"; inp.min = 0; }
+      // Seller-side penalty window. Blank min_penalty -> floor of 0; blank
+      // max_penalty -> unbounded exposure (the original behaviour). Both only
+      // affect sellers (producers/intermediaries); retailers ignore them.
+      if (key === "min_penalty") { inp.placeholder = "0"; inp.min = 0; }
+      if (key === "max_penalty") { inp.placeholder = "∞ unbounded"; inp.min = 0; }
       if (hasVal(prefill[key])) inp.value = prefill[key];
       l.appendChild(inp); wrap.appendChild(l);
     });

@@ -69,10 +69,14 @@ def build_schedule(spec):
 
 # --- agent dict -> agent ----------------------------------------------------
 
-# Scalar params copied straight through to agent(...) when present.
+# Scalar params copied straight through to agent(...) when present. Absent keys
+# fall back to the agent constructor defaults, so a sparse spec is fine -- e.g.
+# omitting max_penalty leaves the seller's penalty exposure unbounded (None) and
+# omitting min_penalty leaves the floor at 0, the original behaviour.
 _SCALAR_FIELDS = (
     "cost", "production_cost", "production_time", "inventory",
     "input_inventory", "safety_stock", "shelf_life", "penalty_scale",
+    "min_penalty", "max_penalty",
     "risk_aversion",
 )
 # Fields whose value is a schedule spec, mapped name -> agent kwarg.
