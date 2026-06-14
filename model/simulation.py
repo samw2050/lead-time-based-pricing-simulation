@@ -353,8 +353,10 @@ class Simulation:
                     # is using this round (0 for resale, since the unit physically exists).
                     # The penalty term is scaled by the seller's penalty_scale so the
                     # reservation value matches the seller's perceived bump cost above.
-                    resale_floor = ((incumbent.price - seller_cost)
-                                    + incumbent.supplier_penalty * seller.penalty_scale)
+                    # Reservation = forgone incumbent margin only; the penalty cost is
+                    # already deducted inside EV_s (via resale_cost in the solver), so
+                    # adding it here a second time would double-count it.
+                    resale_floor = (incumbent.price - seller_cost)
                     second_ev_s = max(second_ev_s, resale_floor)
                 awards[seller] = {
                     'winner': winner_buyer,
